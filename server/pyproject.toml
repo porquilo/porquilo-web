@@ -1,0 +1,14 @@
+[project]
+name = "porquilo"
+version = "0.1.0"
+description = "The server for the porquilo application, supports the web app and mobile apps"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]",
+    "sqlmodel",
+    "alembic",
+    "pydantic-settings",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
