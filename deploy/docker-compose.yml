@@ -1,0 +1,29 @@
+services:
+  server:
+    image: yourdockerhubusername/porquilo:latest
+    ports:
+      - "4184:4184"
+    env_file: .env
+    volumes:
+      - porquilo-data:/data
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+
+  db:
+    image: postgres:16
+    profiles: ["postgres"]
+    env_file: .env
+    volumes:
+      - porquilo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-porquilo}"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  porquilo-data:
+  porquilo-db:
