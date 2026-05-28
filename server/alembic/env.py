@@ -1,8 +1,17 @@
+import os
+import sys
 from logging.config import fileConfig
 
 from sqlalchemy import create_engine
 
 from alembic import context
+
+# Ensure the src/ package root is on sys.path. The editable-install .pth file
+# that hatchling writes is not always processed (e.g. Python 3.14 venv quirk),
+# so we add it explicitly here as a fallback.
+_src = os.path.join(os.path.dirname(__file__), "..", "src")
+if _src not in sys.path:
+    sys.path.insert(0, os.path.abspath(_src))
 
 from sqlmodel import SQLModel
 from porquilo.core.config import settings
@@ -60,7 +69,13 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = create_engine(settings.database_url)
+    # Prefer an explicit URL from the config (e.g. set by tests); fall back to
+    # the application settings so the default alembic.ini placeholder is ignored.
+    url = config.get_main_option("sqlalchemy.url")
+    if not url or url == "driver://user:pass@localhost/dbname":
+        url = settings.database_url
+
+    connectable = create_engine(url)
 
     with connectable.connect() as connection:
         context.configure(

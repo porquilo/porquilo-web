@@ -10,6 +10,12 @@ dependencies = [
     "pydantic-settings",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "testcontainers[postgres]",
+]
+
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
