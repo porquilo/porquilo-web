@@ -145,7 +145,7 @@ def upgrade() -> None:
             sa.text(
                 "INSERT INTO tracked_nutrients "
                 "(id, nutrient_id, display_order, show_in_diary, show_in_goals, show_in_charts, created_at) "
-                "SELECT :tid, id, :order, 1, 1, 0, :ts "
+                "SELECT :tid, id, :order, true, true, false, :ts "
                 "FROM nutrient_definitions WHERE key = :key"
             ).bindparams(tid=str(tid), order=order, key=key, ts=_NOW)
         )

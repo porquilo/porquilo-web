@@ -51,7 +51,7 @@ def test_food_sources_key_unique(engine_002):
         _exec(
             engine_002,
             "INSERT INTO food_sources (id, key, display_name, is_active, created_at, updated_at) "
-            "VALUES (:id, 'usda', 'Dup', 1, :ts, :ts)",
+            "VALUES (:id, 'usda', 'Dup', true, :ts, :ts)",
             {"id": str(uuid.uuid4()), "ts": _NOW},
         )
 
@@ -98,7 +98,7 @@ def test_new_food_source_enables_food(engine_002):
     _exec(
         engine_002,
         "INSERT INTO food_sources (id, key, display_name, is_active, created_at, updated_at) "
-        "VALUES (:id, 'cronometer', 'Cronometer', 1, :ts, :ts)",
+        "VALUES (:id, 'cronometer', 'Cronometer', true, :ts, :ts)",
         {"id": src_id, "ts": _NOW},
     )
     food_id = str(uuid.uuid4())

@@ -81,7 +81,7 @@ def test_tracked_nutrient_id_unique(engine):
                 sa.text(
                     "INSERT INTO tracked_nutrients "
                     "(id, nutrient_id, display_order, show_in_diary, show_in_goals, show_in_charts, created_at) "
-                    "VALUES (:id, :nid, 99, 0, 0, 0, '2026-01-01')"
+                    "VALUES (:id, :nid, 99, false, false, false, '2026-01-01')"
                 ),
                 {"id": str(uuid.uuid4()), "nid": str(nutrient_id)},
             )
