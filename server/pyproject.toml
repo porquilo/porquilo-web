@@ -8,6 +8,7 @@ dependencies = [
     "sqlmodel",
     "alembic",
     "pydantic-settings",
+    "psycopg2-binary>=2.9.12",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +23,12 @@ select = ["E", "F", "I"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "testcontainers>=4.14.2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/porquilo"]
