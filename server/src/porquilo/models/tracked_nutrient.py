@@ -16,4 +16,4 @@ class TrackedNutrient(SQLModel, table=True):
     show_in_diary: bool
     show_in_goals: bool
     show_in_charts: bool
-    created_at: datetime = Field(default_factory=datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

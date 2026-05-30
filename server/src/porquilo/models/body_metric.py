@@ -17,4 +17,4 @@ class BodyMetric(SQLModel, table=True):
     measured_at: Optional[datetime] = None
     # Known values: manual, apple_health, health_connect, fitbit, withings, garmin — open/extensible.
     source: str
-    created_at: Optional[datetime] = Field(default_factory=datetime.now(timezone.utc))
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
