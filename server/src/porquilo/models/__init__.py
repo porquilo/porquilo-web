@@ -13,7 +13,9 @@ from porquilo.models.meal_skip import MealSkip
 from porquilo.models.nutrient_definition import NutrientDefinition
 from porquilo.models.recipe import Recipe
 from porquilo.models.recipe_ingredient import RecipeIngredient
+from porquilo.models.sync_log import SyncLog
 from porquilo.models.tracked_nutrient import TrackedNutrient
+from porquilo.models.user_override import UserOverride
 
 __all__ = [
     "BodyMetric",
@@ -31,5 +33,7 @@ __all__ = [
     "NutrientDefinition",
     "Recipe",
     "RecipeIngredient",
+    "SyncLog",
     "TrackedNutrient",
+    "UserOverride",
 ]
