@@ -18,4 +18,4 @@ class Goal(SQLModel, table=True):
     # Null when calorie_mode is 'fixed'; enforced at application layer.
     calorie_factor: Optional[Decimal] = None
     effective_from: date = Field(sa_column=sa.Column(sa.Date(), unique=True, nullable=False))
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))

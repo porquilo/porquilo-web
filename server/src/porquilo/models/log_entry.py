@@ -14,9 +14,9 @@ class LogEntry(SQLModel, table=True):
     ingredient_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="ingredients.id")
     meal_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="meals.id")
     eaten_at: datetime
-    logged_at: datetime = Field(default_factory=datetime.utcnow)
+    logged_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     weight_g: Optional[Decimal] = None
     weight_source: str
     weight_confidence: str
     input_method: str
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
