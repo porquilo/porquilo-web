@@ -16,4 +16,4 @@ class NutrientDefinition(SQLModel, table=True):
     display_name: str
     unit: str
     sort_order: int = Field(unique=True)
-    created_at: datetime = Field(default_factory=datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
