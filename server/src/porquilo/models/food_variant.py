@@ -15,4 +15,4 @@ class FoodVariant(SQLModel, table=True):
     name: Optional[str] = None
     amount: Optional[Decimal] = None
     unit: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now(timezone.utc))

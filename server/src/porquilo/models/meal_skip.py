@@ -16,4 +16,4 @@ class MealSkip(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, sa_type=Uuid)
     meal_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="meals.id")
     skipped_on: date
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.now(timezone.utc))

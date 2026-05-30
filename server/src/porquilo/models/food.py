@@ -16,5 +16,5 @@ class Food(SQLModel, table=True):
     food_source_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="food_sources.id")
     external_source_id: Optional[str] = None
     default_unit: str = "g"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=datetime.now(timezone.utc))
