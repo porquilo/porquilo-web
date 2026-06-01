@@ -10,7 +10,7 @@ services:
       - porquilo-data:/data
     environment:
       - DB_ENGINE=sqlite
-    command: uv run uvicorn porquilo.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uv run uvicorn porquilo.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src
 
   web:
     image: node:24-slim
