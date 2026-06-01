@@ -1,6 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from sqlalchemy import Uuid
 from sqlmodel import Field, SQLModel
 
@@ -16,4 +17,7 @@ class TrackedNutrient(SQLModel, table=True):
     show_in_diary: bool
     show_in_goals: bool
     show_in_charts: bool
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False),
+    )
