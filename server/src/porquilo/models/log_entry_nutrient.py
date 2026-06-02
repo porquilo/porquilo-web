@@ -16,7 +16,11 @@ class LogEntryNutrient(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, sa_type=Uuid)
-    log_entry_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="log_entries.id")
+    log_entry_id: uuid.UUID = Field(
+        sa_column=sa.Column(
+            sa.Uuid, sa.ForeignKey("log_entries.id", ondelete="CASCADE"), nullable=False
+        )
+    )
     nutrient_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="nutrient_definitions.id")
     value: Decimal
     coverage: str
