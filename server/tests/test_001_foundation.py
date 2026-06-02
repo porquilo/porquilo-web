@@ -5,19 +5,19 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
 
-def _count(engine, table: str) -> int:
-    with engine.connect() as conn:
+def _count(engine_001, table: str) -> int:
+    with engine_001.connect() as conn:
         return conn.execute(sa.text(f"SELECT COUNT(*) FROM {table}")).scalar()
 
 
-def test_tables_seeded(engine):
-    assert _count(engine, "nutrient_definitions") == 27
-    assert _count(engine, "meals") == 4
-    assert _count(engine, "tracked_nutrients") == 4
+def test_tables_seeded(engine_001):
+    assert _count(engine_001, "nutrient_definitions") == 27
+    assert _count(engine_001, "meals") == 4
+    assert _count(engine_001, "tracked_nutrients") == 4
 
 
-def test_meal_names(engine):
-    with engine.connect() as conn:
+def test_meal_names(engine_001):
+    with engine_001.connect() as conn:
         rows = conn.execute(
             sa.text("SELECT name, sort_order, is_default FROM meals ORDER BY sort_order")
         ).fetchall()
@@ -26,8 +26,8 @@ def test_meal_names(engine):
     assert all(r[2] for r in rows), "all meals should have is_default = true"
 
 
-def test_tracked_nutrients_flags(engine):
-    with engine.connect() as conn:
+def test_tracked_nutrients_flags(engine_001):
+    with engine_001.connect() as conn:
         rows = conn.execute(
             sa.text(
                 "SELECT nd.key, tn.show_in_diary, tn.show_in_goals, tn.show_in_charts "
@@ -44,9 +44,9 @@ def test_tracked_nutrients_flags(engine):
         assert not charts, f"{key}: show_in_charts should be false"
 
 
-def test_nutrient_key_unique(engine):
+def test_nutrient_key_unique(engine_001):
     with pytest.raises(IntegrityError):
-        with engine.begin() as conn:
+        with engine_001.begin() as conn:
             conn.execute(
                 sa.text(
                     "INSERT INTO nutrient_definitions (id, key, display_name, unit, sort_order, created_at) "
@@ -56,9 +56,9 @@ def test_nutrient_key_unique(engine):
             )
 
 
-def test_nutrient_sort_order_unique(engine):
+def test_nutrient_sort_order_unique(engine_001):
     with pytest.raises(IntegrityError):
-        with engine.begin() as conn:
+        with engine_001.begin() as conn:
             conn.execute(
                 sa.text(
                     "INSERT INTO nutrient_definitions (id, key, display_name, unit, sort_order, created_at) "
@@ -68,15 +68,15 @@ def test_nutrient_sort_order_unique(engine):
             )
 
 
-def test_tracked_nutrient_id_unique(engine):
+def test_tracked_nutrient_id_unique(engine_001):
     # Fetch the id of an already-tracked nutrient
-    with engine.connect() as conn:
+    with engine_001.connect() as conn:
         nutrient_id = conn.execute(
             sa.text("SELECT nutrient_id FROM tracked_nutrients LIMIT 1")
         ).scalar()
 
     with pytest.raises(IntegrityError):
-        with engine.begin() as conn:
+        with engine_001.begin() as conn:
             conn.execute(
                 sa.text(
                     "INSERT INTO tracked_nutrients "

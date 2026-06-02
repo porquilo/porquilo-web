@@ -6,6 +6,8 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import event
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 
 def _alembic_cfg(url: str) -> Config:
@@ -68,7 +70,7 @@ engine_007 = _make_engine_fixture("007")
 
 
 @pytest.fixture(params=["sqlite", "pg"])
-def engine(request, tmp_path):
+def engine_001(request, tmp_path):
     if request.param == "sqlite":
         db_file = tmp_path / "test.db"
         url = f"sqlite:///{db_file}"
@@ -96,3 +98,65 @@ def engine(request, tmp_path):
                 command.downgrade(cfg, "base")
         except Exception as exc:
             pytest.skip(f"Docker unavailable: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# API-layer test infrastructure
+# Reads DATABASE_URL from the environment; falls back to in-memory SQLite.
+# Switch databases by setting DATABASE_URL — no test code changes required.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def engine():
+    url = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
+    if url.startswith("sqlite:"):
+        pool_kwargs = {"poolclass": StaticPool} if url == "sqlite:///:memory:" else {}
+        eng = sa.create_engine(url, connect_args={"check_same_thread": False}, **pool_kwargs)
+
+        @event.listens_for(eng, "connect")
+        def _fk(dbapi_conn, _rec):
+            dbapi_conn.execute("PRAGMA foreign_keys = ON")
+    else:
+        eng = sa.create_engine(url)
+
+    # Run migrations through the engine's own connection so that in-memory
+    # SQLite shares the same database (Alembic would otherwise open a separate
+    # :memory: connection and discard it immediately).
+    cfg = _alembic_cfg(url)
+    with eng.connect() as conn:
+        cfg.attributes["connection"] = conn
+        command.upgrade(cfg, "head")
+
+    yield eng
+    eng.dispose()
+
+
+@pytest.fixture
+def db_session(engine):
+    with engine.connect() as conn:
+        with conn.begin() as tx:
+            with Session(conn, join_transaction_mode="create_savepoint") as session:
+                yield session
+            tx.rollback()
+
+
+@pytest.fixture
+def override_get_session(db_session):
+    from porquilo.main import app
+    from porquilo.core.database import get_session
+
+    def _override():
+        yield db_session
+
+    app.dependency_overrides[get_session] = _override
+    yield
+    app.dependency_overrides.pop(get_session, None)
+
+
+@pytest.fixture
+def client(override_get_session):
+    from fastapi.testclient import TestClient
+    from porquilo.main import app
+
+    return TestClient(app)
