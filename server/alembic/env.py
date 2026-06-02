@@ -69,6 +69,16 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Tests may pass a live connection via cfg.attributes["connection"] so that
+    # in-memory SQLite (or any pre-opened connection) is reused rather than a
+    # new engine being created from the URL.
+    if "connection" in config.attributes:
+        connection = config.attributes["connection"]
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     # Prefer an explicit URL from the config (e.g. set by tests); fall back to
     # the application settings so the default alembic.ini placeholder is ignored.
     url = config.get_main_option("sqlalchemy.url")
