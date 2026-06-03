@@ -82,7 +82,7 @@ def _insert_entry(
         {
             "id": eid,
             "fid": food_id,
-            "mid": meal_id,
+            "mid": meal_id.replace("-", ""),
             "eaten": eaten_at,
             "logged": _NOW,
             "wg": weight_g,
@@ -116,7 +116,7 @@ def _insert_skip(db_session, meal_id: str, skipped_on: str) -> None:
             "INSERT INTO meal_skips (id, meal_id, skipped_on) "
             "VALUES (:id, :mid, :date)"
         ),
-        {"id": uuid.uuid4().hex, "mid": meal_id, "date": skipped_on},
+        {"id": uuid.uuid4().hex, "mid": meal_id.replace("-", ""), "date": skipped_on},
     )
 
 
