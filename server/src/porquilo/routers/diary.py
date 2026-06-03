@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
@@ -21,6 +21,13 @@ from porquilo.models import (
 )
 
 router = APIRouter(prefix="/api/diary", tags=["diary"])
+
+
+def _parse_date(raw: str) -> date:
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="date must be YYYY-MM-DD")
 
 
 class NutrientValue(BaseModel):
@@ -55,21 +62,16 @@ class DiaryResponse(BaseModel):
 
 @router.get("/{date}", response_model=DiaryResponse)
 def get_diary(date: str, session: Session = Depends(get_session)) -> DiaryResponse:
-    try:
-        parsed = datetime.strptime(date, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=422, detail="date must be YYYY-MM-DD")
-
-    day_start = datetime(parsed.year, parsed.month, parsed.day)
+    parsed_date = _parse_date(date)
+    day_start = datetime(parsed_date.year, parsed_date.month, parsed_date.day)
     day_end = day_start + timedelta(days=1)
-    skipped_on = day_start.date()
 
     meals = session.execute(select(Meal).order_by(Meal.sort_order)).scalars().all()
 
     skipped_meal_ids: set[uuid.UUID] = {
         row.meal_id
         for row in session.execute(
-            select(MealSkip).where(MealSkip.skipped_on == skipped_on)
+            select(MealSkip).where(MealSkip.skipped_on == parsed_date)
         ).scalars().all()
     }
 
@@ -159,3 +161,41 @@ def get_diary(date: str, session: Session = Depends(get_session)) -> DiaryRespon
         day_totals=day_totals,
         has_estimated_entries=has_estimated,
     )
+
+
+@router.post("/{date}/meals/{meal_id}/skip", status_code=201)
+def skip_meal(date: str, meal_id: UUID, session: Session = Depends(get_session)):
+    parsed = _parse_date(date)
+
+    meal = session.get(Meal, meal_id)
+    if meal is None:
+        raise HTTPException(status_code=422, detail="meal_id not found")
+
+    existing = session.execute(
+        select(MealSkip).where(
+            MealSkip.meal_id == meal_id,
+            MealSkip.skipped_on == parsed,
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="meal already skipped on this date")
+
+    session.add(MealSkip(meal_id=meal_id, skipped_on=parsed))
+    session.commit()
+
+
+@router.delete("/{date}/meals/{meal_id}/skip", status_code=204)
+def unskip_meal(date: str, meal_id: UUID, session: Session = Depends(get_session)):
+    parsed = _parse_date(date)
+
+    skip = session.execute(
+        select(MealSkip).where(
+            MealSkip.meal_id == meal_id,
+            MealSkip.skipped_on == parsed,
+        )
+    ).scalar_one_or_none()
+    if skip is None:
+        raise HTTPException(status_code=404, detail="no skip found for this meal on this date")
+
+    session.delete(skip)
+    session.commit()

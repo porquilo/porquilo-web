@@ -18,9 +18,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Porquilo", lifespan=lifespan)
 
+app.include_router(diary_router)
 app.include_router(foods_router)
 app.include_router(entries_router)
-app.include_router(diary_router)
 
 
 @app.get("/health")
