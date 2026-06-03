@@ -4,6 +4,12 @@ FastAPI nutrition tracker. SQLite in dev, PostgreSQL in prod. Single-user for no
 
 ---
 
+## Package management
+
+Use `uv` for all Python tooling — `uv run`, `uv add`, `uv sync`, etc. Do not use `pip` or `python` directly.
+
+---
+
 ## Non-negotiables
 
 - **Never call `SQLModel.metadata.create_all()` or `drop_all()`** — Alembic is the source of truth. Read the migration files to confirm column names, types, and nullability before writing or modifying models. Do not infer from memory.
