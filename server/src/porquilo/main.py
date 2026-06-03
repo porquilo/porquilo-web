@@ -4,6 +4,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 
+from porquilo.routers.diary import router as diary_router
 from porquilo.routers.entries import router as entries_router
 from porquilo.routers.foods import router as foods_router
 
@@ -17,6 +18,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Porquilo", lifespan=lifespan)
 
+app.include_router(diary_router)
 app.include_router(foods_router)
 app.include_router(entries_router)
 
