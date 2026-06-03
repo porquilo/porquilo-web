@@ -12,7 +12,8 @@ class LogEntry(SQLModel, table=True):
     __tablename__ = "log_entries"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, sa_type=Uuid)
-    ingredient_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="ingredients.id")
+    food_id: Optional[uuid.UUID] = Field(default=None, sa_type=Uuid, foreign_key="foods.id")
+    recipe_id: Optional[uuid.UUID] = Field(default=None, sa_type=Uuid, foreign_key="recipes.id")
     meal_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="meals.id")
     eaten_at: datetime = Field(sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False))
     logged_at: datetime = Field(

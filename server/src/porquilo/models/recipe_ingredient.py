@@ -1,5 +1,6 @@
 import uuid
 from decimal import Decimal
+from typing import Optional
 
 import sqlalchemy as sa
 from sqlalchemy import Uuid
@@ -13,5 +14,6 @@ class RecipeIngredient(SQLModel, table=True):
     recipe_id: uuid.UUID = Field(
         sa_column=sa.Column(sa.Uuid, sa.ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
     )
-    ingredient_id: uuid.UUID = Field(sa_type=Uuid, foreign_key="ingredients.id")
+    food_id: Optional[uuid.UUID] = Field(default=None, sa_type=Uuid, foreign_key="foods.id")
+    nested_recipe_id: Optional[uuid.UUID] = Field(default=None, sa_type=Uuid, foreign_key="recipes.id")
     weight_g: Decimal
