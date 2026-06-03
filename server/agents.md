@@ -1,6 +1,6 @@
 # Porquilo — Server
 
-FastAPI nutrition tracker. SQLite in dev, PostgreSQL in prod. Single-user.
+FastAPI nutrition tracker. SQLite in dev, PostgreSQL in prod. Single-user for now.
 
 ---
 
