@@ -31,6 +31,14 @@ def upgrade() -> None:
     op.drop_index("ix_recipe_ingredients_ingredient_id", table_name="recipe_ingredients")
 
     # 3. Alter log_entries: swap ingredient_id for food_id + recipe_id
+    # On PostgreSQL, batch recreate fails while log_entry_nutrients has a FK referencing
+    # log_entries.id (PostgreSQL won't drop the PK index backing the constraint).
+    # Drop and re-add that FK around the batch alter.
+    if dialect != "sqlite":
+        op.drop_constraint(
+            "log_entry_nutrients_log_entry_id_fkey", "log_entry_nutrients", type_="foreignkey"
+        )
+
     with op.batch_alter_table("log_entries", recreate="always") as batch_op:
         batch_op.drop_column("ingredient_id")
         batch_op.add_column(sa.Column("food_id", sa.Uuid(), nullable=True))
@@ -45,6 +53,14 @@ def upgrade() -> None:
             "ck_log_entries_exactly_one_fk",
             "(food_id IS NOT NULL AND recipe_id IS NULL)"
             " OR (food_id IS NULL AND recipe_id IS NOT NULL)",
+        )
+
+    if dialect != "sqlite":
+        op.create_foreign_key(
+            "log_entry_nutrients_log_entry_id_fkey",
+            "log_entry_nutrients", "log_entries",
+            ["log_entry_id"], ["id"],
+            ondelete="CASCADE",
         )
 
     # 4. Alter recipe_ingredients: swap ingredient_id for food_id + nested_recipe_id
@@ -120,6 +136,12 @@ def downgrade() -> None:
         )
 
     # 4. Restore log_entries.ingredient_id
+    # Same FK dependency issue as in upgrade: drop before batch recreate, restore after.
+    if dialect != "sqlite":
+        op.drop_constraint(
+            "log_entry_nutrients_log_entry_id_fkey", "log_entry_nutrients", type_="foreignkey"
+        )
+
     with op.batch_alter_table("log_entries", recreate="always") as batch_op:
         batch_op.drop_constraint("ck_log_entries_exactly_one_fk", type_="check")
         batch_op.drop_constraint("fk_log_entries_recipe_id", type_="foreignkey")
@@ -129,6 +151,14 @@ def downgrade() -> None:
         batch_op.add_column(sa.Column("ingredient_id", sa.Uuid(), nullable=True))
         batch_op.create_foreign_key(
             "fk_log_entries_ingredient_id", "ingredients", ["ingredient_id"], ["id"]
+        )
+
+    if dialect != "sqlite":
+        op.create_foreign_key(
+            "log_entry_nutrients_log_entry_id_fkey",
+            "log_entry_nutrients", "log_entries",
+            ["log_entry_id"], ["id"],
+            ondelete="CASCADE",
         )
 
     # 5. Restore ingredient_id index
