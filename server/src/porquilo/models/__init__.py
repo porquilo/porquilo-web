@@ -5,7 +5,6 @@ from porquilo.models.food_source import FoodSource
 from porquilo.models.food_variant import FoodVariant
 from porquilo.models.goal import Goal
 from porquilo.models.goal_nutrient import GoalNutrient
-from porquilo.models.ingredient import Ingredient
 from porquilo.models.log_entry import LogEntry
 from porquilo.models.log_entry_nutrient import LogEntryNutrient
 from porquilo.models.meal import Meal
@@ -25,7 +24,6 @@ __all__ = [
     "FoodVariant",
     "Goal",
     "GoalNutrient",
-    "Ingredient",
     "LogEntry",
     "LogEntryNutrient",
     "Meal",

@@ -67,18 +67,11 @@ API-facing Pydantic models use friendlier names for readability. Routes must tra
 | `source_id` | `external_source_id` | Store directly |
 | `source` in responses | `food_sources.key` | Join `food_sources`, return `key` |
 
-### `ingredients` abstraction layer
+### Direct FK approach for log entries and recipe ingredients
 
-`log_entries` stores `ingredient_id` (FK → `ingredients`), not `food_id` directly. The `ingredients` table lets foods and recipes appear uniformly in log entries and recipe contents.
+`log_entries` has `food_id` (FK → `foods.id`) and `recipe_id` (FK → `recipes.id`), both nullable. Exactly one must be set (enforced by `ck_log_entries_exactly_one_fk`). Routes that create a log entry set `food_id` directly for food entries and `recipe_id` directly for recipe entries.
 
-For Phase 1 (foods only), any route that creates a log entry must resolve `food_id → ingredient_id`:
-
-1. `SELECT id FROM ingredients WHERE food_id = :food_id`
-2. If no row exists, insert one (`food_id` set, `recipe_id` null)
-3. Use the resulting `ingredient_id` on the `LogEntry`
-
-Diary queries that need `food_name` must join through the same abstraction:
-`log_entries → ingredients → foods` (`LogEntry.ingredient_id → Ingredient.food_id → Food.name`)
+`recipe_ingredients` has `food_id` (FK → `foods.id`) and `nested_recipe_id` (FK → `recipes.id`), both nullable. Exactly one must be set (enforced by `ck_recipe_ingredients_exactly_one_fk`). The existing `recipe_id` column identifies the parent recipe being defined. Direct self-reference (`nested_recipe_id = recipe_id`) is rejected by `ck_recipe_ingredients_no_self_ref`. Deep cycle prevention (A → B → A) is application-layer enforcement in the recipe management routes.
 
 ### Timestamps
 

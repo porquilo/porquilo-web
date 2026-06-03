@@ -21,7 +21,7 @@ EXPECTED_COLUMNS = {
     "food_nutrients": {"id", "food_id", "nutrient_id", "value_per_100"},
     "food_variants": {"id", "food_id", "name", "amount", "unit", "created_at"},
     "log_entries": {
-        "id", "ingredient_id", "meal_id", "eaten_at", "logged_at",
+        "id", "food_id", "recipe_id", "meal_id", "eaten_at", "logged_at",
         "weight_g", "weight_source", "weight_confidence", "input_method", "created_at",
     },
     "log_entry_nutrients": {"id", "log_entry_id", "nutrient_id", "value", "coverage"},
@@ -30,8 +30,7 @@ EXPECTED_COLUMNS = {
         "id", "name", "total_yield_g", "yield_estimated", "servings",
         "yield_description", "notes", "source", "source_id", "created_at", "updated_at",
     },
-    "ingredients": {"id", "food_id", "recipe_id"},
-    "recipe_ingredients": {"id", "recipe_id", "ingredient_id", "weight_g"},
+    "recipe_ingredients": {"id", "recipe_id", "food_id", "nested_recipe_id", "weight_g"},
     "goals": {"id", "calorie_mode", "calorie_target", "calorie_factor", "effective_from", "created_at"},
     "goal_nutrients": {"id", "goal_id", "nutrient_id", "target_value"},
     "body_metrics": {"id", "metric_type", "value", "measured_at", "source", "created_at"},
@@ -46,8 +45,8 @@ EXPECTED_COLUMNS = {
 }
 
 
-def test_model_columns_match_db(engine_007):
-    inspector = sa.inspect(engine_007)
+def test_model_columns_match_db(engine_008):
+    inspector = sa.inspect(engine_008)
 
     for table_name, expected in EXPECTED_COLUMNS.items():
         db_cols = {col["name"] for col in inspector.get_columns(table_name)}
