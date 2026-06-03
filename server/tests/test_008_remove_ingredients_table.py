@@ -62,7 +62,7 @@ def _new_meal(engine, *, name="Dinner"):
     _exec(
         engine,
         "INSERT INTO meals (id, name, sort_order, is_default, created_at)"
-        " VALUES (:id, :name, 1, 0, :ts)",
+        " VALUES (:id, :name, 1, false, :ts)",
         {"id": meal_id, "name": name, "ts": _NOW},
     )
     return meal_id
