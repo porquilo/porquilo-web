@@ -1,5 +1,6 @@
 import os
 import tempfile
+import warnings
 
 import pytest
 import sqlalchemy as sa
@@ -110,6 +111,9 @@ def engine_001(request, tmp_path):
 
 @pytest.fixture(scope="session")
 def engine():
+    # Suppress deprecation warning about date adapter in Python 3.12+
+    warnings.filterwarnings("ignore", message=".*default date adapter is deprecated.*")
+    
     url = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
     if url.startswith("sqlite:"):
         pool_kwargs = {"poolclass": StaticPool} if url == "sqlite:///:memory:" else {}

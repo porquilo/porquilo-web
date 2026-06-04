@@ -14,7 +14,7 @@ build/
 uv.lock
 
 # Alembic
-# (keep alembic/versions/ tracked — those are your migrations)
+# (keep alembic/versions/ tracked — those are the migrations)
 
 # Testing
 .pytest_cache/
