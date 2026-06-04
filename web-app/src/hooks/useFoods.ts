@@ -8,3 +8,10 @@ export function useFoods(q: string) {
     enabled: q.trim().length >= 2,
   })
 }
+
+export function useAllFoods() {
+  return useQuery({
+    queryKey: ['foods', ''],
+    queryFn: () => searchFoods(''),
+  })
+}
