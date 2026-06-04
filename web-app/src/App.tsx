@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ToastProvider, useToast } from './contexts/ToastContext'
+import { TodayView } from './views/today/TodayView'
 import LibraryView from './views/library/LibraryView'
 import ReportsView from './views/reports/ReportsView'
 import SettingsView from './views/settings/SettingsView'
@@ -13,7 +14,7 @@ function Shell() {
 
   function renderView() {
     switch (tab) {
-      case 'today':    return <div>Today</div>
+      case 'today':    return <TodayView onOpenLog={(mealId) => console.log('open log', mealId)} />
       case 'library':  return <LibraryView />
       case 'reports':  return <ReportsView />
       case 'settings': return <SettingsView />
