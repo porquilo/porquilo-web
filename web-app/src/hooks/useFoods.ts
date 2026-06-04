@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { searchFoods } from '../api/foods'
+import { searchFoods, listFoods } from '../api/foods'
 
 export function useFoods(q: string) {
   return useQuery({
@@ -11,7 +11,7 @@ export function useFoods(q: string) {
 
 export function useAllFoods() {
   return useQuery({
-    queryKey: ['foods', ''],
-    queryFn: () => searchFoods(''),
+    queryKey: ['foods', 'all'],
+    queryFn: listFoods,
   })
 }
