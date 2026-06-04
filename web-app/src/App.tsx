@@ -2,19 +2,35 @@ import { useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ToastProvider, useToast } from './contexts/ToastContext'
 import { TodayView } from './views/today/TodayView'
+import { QuickLogPanel } from './views/today/QuickLogPanel'
 import LibraryView from './views/library/LibraryView'
 import ReportsView from './views/reports/ReportsView'
 import SettingsView from './views/settings/SettingsView'
+import { formatDate } from './utils/dates'
 
 export type Tab = 'today' | 'library' | 'reports' | 'settings'
 
 function Shell() {
   const [tab, setTab] = useState<Tab>('today')
+  const [selectedDate, setSelectedDate] = useState<string>(() => formatDate(new Date()))
+  const [logOpen, setLogOpen] = useState(false)
+  const [logDefaultMealId, setLogDefaultMealId] = useState<string | undefined>()
   const { toast } = useToast()
+
+  function openLog(mealId?: string) {
+    setLogDefaultMealId(mealId)
+    setLogOpen(true)
+  }
 
   function renderView() {
     switch (tab) {
-      case 'today':    return <TodayView onOpenLog={(mealId) => console.log('open log', mealId)} />
+      case 'today':    return (
+        <TodayView
+          onOpenLog={openLog}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+        />
+      )
       case 'library':  return <LibraryView />
       case 'reports':  return <ReportsView />
       case 'settings': return <SettingsView />
@@ -34,6 +50,12 @@ function Shell() {
         <div style={{ flex: 1, overflow: 'hidden' }}>
           {renderView()}
         </div>
+        <QuickLogPanel
+          open={logOpen}
+          onClose={() => setLogOpen(false)}
+          defaultMealId={logDefaultMealId}
+          selectedDate={selectedDate}
+        />
 
         {toast && (
           <div style={{
