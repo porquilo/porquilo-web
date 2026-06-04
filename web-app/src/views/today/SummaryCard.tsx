@@ -70,10 +70,10 @@ export function SummaryCard({ day, isLoading }: SummaryCardProps) {
     )
   }
 
-  const kcal = day?.day_totals['energy_kcal'] ?? 0
-  const protein = day?.day_totals['protein'] ?? 0
-  const carbs = day?.day_totals['carbs'] ?? 0
-  const fat = day?.day_totals['fat'] ?? 0
+  const kcal = Number(day?.day_totals['calories_kcal']) || 0
+  const protein = Number(day?.day_totals['protein_g']) || 0
+  const carbs = Number(day?.day_totals['carbs_g']) || 0
+  const fat = Number(day?.day_totals['fat_g']) || 0
   const isEstimated = day?.has_estimated_entries ?? false
 
   const allEntries = day ? getAllEntries(day) : []
@@ -81,7 +81,7 @@ export function SummaryCard({ day, isLoading }: SummaryCardProps) {
   const estimatedCount = allEntries.filter(e => e.weight_confidence === 'estimated').length
   const measuredCount = allEntries.filter(e => e.weight_confidence === 'measured').length
   const calculatedCount = allEntries.filter(e => e.weight_confidence === 'calculated').length
-  const totalWeightG = allEntries.reduce((sum, e) => sum + (e.weight_g ?? 0), 0)
+  const totalWeightG = allEntries.reduce((sum, e) => sum + (Number(e.weight_g) || 0), 0)
 
   const lastEntry = allEntries.length > 0
     ? allEntries.reduce((latest, e) => e.eaten_at > latest.eaten_at ? e : latest)
