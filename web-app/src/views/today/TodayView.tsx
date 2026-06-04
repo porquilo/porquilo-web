@@ -1,18 +1,18 @@
-import { useState } from 'react'
 import { useDiary } from '../../hooks/useDiary'
 import { Button } from '../../components/Button'
 import { WIcon, WI } from '../../components/Icon'
-import { formatDate, addDays, formatDateLabel } from '../../utils/dates'
+import { addDays, formatDateLabel } from '../../utils/dates'
 import { WeekStrip } from './WeekStrip'
 import { SummaryCard } from './SummaryCard'
 import { DiaryCard } from './DiaryCard'
 
 export interface TodayViewProps {
   onOpenLog: (mealId?: string) => void
+  selectedDate: string
+  onDateChange: (d: string) => void
 }
 
-export function TodayView({ onOpenLog }: TodayViewProps) {
-  const [selectedDate, setSelectedDate] = useState<string>(() => formatDate(new Date()))
+export function TodayView({ onOpenLog, selectedDate, onDateChange }: TodayViewProps) {
   const { data: day, isLoading } = useDiary(selectedDate)
 
   return (
@@ -38,7 +38,7 @@ export function TodayView({ onOpenLog }: TodayViewProps) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
-              onClick={() => setSelectedDate(d => addDays(d, -1))}
+              onClick={() => onDateChange(addDays(selectedDate, -1))}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -66,7 +66,7 @@ export function TodayView({ onOpenLog }: TodayViewProps) {
             </h1>
 
             <button
-              onClick={() => setSelectedDate(d => addDays(d, 1))}
+              onClick={() => onDateChange(addDays(selectedDate, 1))}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -87,7 +87,7 @@ export function TodayView({ onOpenLog }: TodayViewProps) {
           </Button>
         </div>
 
-        <WeekStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+        <WeekStrip selectedDate={selectedDate} onSelectDate={onDateChange} />
         <SummaryCard day={day} isLoading={isLoading} />
 
         {/* Bottom padding for header */}
