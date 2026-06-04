@@ -172,8 +172,9 @@ function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood,
             key={entry.id}
             style={{
               display: 'grid',
-              gridTemplateColumns: '60px 1fr auto auto',
-              gap: 16,
+              gridTemplateColumns: '60px 1fr auto auto auto',
+              columnGap: 24,
+              rowGap: 0,
               alignItems: 'center',
               padding: '10px 0',
               borderBottom: isLast ? 0 : '1px dashed var(--border-soft)',
@@ -188,33 +189,30 @@ function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood,
               {formatEntryTime(entry.eaten_at)}
             </span>
 
-            {/* Name + badge stacked */}
+            {/* dot + name only — no truncation */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <span style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: dotColor,
+                flexShrink: 0,
+              }} />
+              <span style={{
+                fontSize: 14,
+                fontWeight: nameFontWeight,
+                color: nameColor,
+                fontStyle: nameFontStyle,
+              }}>
+                {entry.food_name}
+              </span>
+            </div>
+
+            {/* badge in its own column so it aligns across rows */}
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: '50%',
-                  background: dotColor,
-                  flexShrink: 0,
-                }} />
-                <span style={{
-                  fontSize: 14,
-                  fontWeight: nameFontWeight,
-                  color: nameColor,
-                  fontStyle: nameFontStyle,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {entry.food_name}
-                </span>
-              </div>
-              <div style={{ marginTop: 4 }}>
-                <ConfidenceBadge level={entry.weight_confidence}>
-                  {entry.input_method}
-                </ConfidenceBadge>
-              </div>
+              <ConfidenceBadge level={entry.weight_confidence}>
+                {entry.input_method}
+              </ConfidenceBadge>
             </div>
 
             <div style={{
