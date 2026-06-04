@@ -1,0 +1,112 @@
+import { useState } from 'react'
+import { useDiary } from '../../hooks/useDiary'
+import { Button } from '../../components/Button'
+import { WIcon, WI } from '../../components/Icon'
+import { formatDate, addDays, formatDateLabel } from '../../utils/dates'
+import { WeekStrip } from './WeekStrip'
+import { SummaryCard } from './SummaryCard'
+import { DiaryCard } from './DiaryCard'
+
+export interface TodayViewProps {
+  onOpenLog: (mealId?: string) => void
+}
+
+export function TodayView({ onOpenLog }: TodayViewProps) {
+  const [selectedDate, setSelectedDate] = useState<string>(() => formatDate(new Date()))
+  const { data: day, isLoading } = useDiary(selectedDate)
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+    }}>
+      {/* Sticky header */}
+      <div style={{
+        flexShrink: 0,
+        padding: '28px 32px 0',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        background: 'var(--bg)',
+      }}>
+        {/* Date nav row */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setSelectedDate(d => addDays(d, -1))}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--fg2)',
+                padding: 4,
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: 6,
+              }}
+            >
+              <WIcon d={WI.chevL} size={20} />
+            </button>
+
+            <h1 style={{
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontSize: 28,
+              fontWeight: 400,
+              color: 'var(--fg1)',
+              margin: 0,
+              lineHeight: 1.1,
+            }}>
+              {formatDateLabel(selectedDate)}
+            </h1>
+
+            <button
+              onClick={() => setSelectedDate(d => addDays(d, 1))}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--fg2)',
+                padding: 4,
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: 6,
+              }}
+            >
+              <WIcon d={WI.chevR} size={20} />
+            </button>
+          </div>
+
+          <Button variant="primary" onClick={() => onOpenLog()}>
+            Log food
+          </Button>
+        </div>
+
+        <WeekStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+        <SummaryCard day={day} isLoading={isLoading} />
+
+        {/* Bottom padding for header */}
+        <div style={{ height: 4 }} />
+      </div>
+
+      {/* Scrollable body */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '20px 32px 48px',
+      }}>
+        <DiaryCard
+          day={day}
+          isLoading={isLoading}
+          onAddFood={(mealId) => onOpenLog(mealId)}
+          selectedDate={selectedDate}
+        />
+      </div>
+    </div>
+  )
+}
