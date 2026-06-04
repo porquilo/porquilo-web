@@ -1,0 +1,37 @@
+[run]
+# Source directory for coverage
+source = src
+
+# Include all Python files under src directory
+include = src/*
+
+# Exclude test files and cache directories
+omit = 
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */.pytest_cache/*
+    */venv/*
+    */env/*
+    */.venv/*
+    */node_modules/*
+    */__pycache__/
+    */.git/
+
+# Disable the warning about running without source
+disable_warnings = 
+    no-data-collected
+
+# Use uv's Python interpreter
+parallel = true
+
+[report]
+# Exclude coverage reports for test files and caches
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+
+[html]
+directory = htmlcov
