@@ -29,17 +29,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --dev
+        cd server && uv sync --dev
 
     - name: Run tests
       run: |
-        uv run pytest --cov=src --cov-report=xml
+        cd server && uv run pytest
       env:
         DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://postgres:postgres@localhost:5432/test' || 'sqlite:///:memory:' }}
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
