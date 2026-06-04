@@ -1,0 +1,367 @@
+/* =============================================================
+   Porquilo — Colors & Type (v2: punchier light + dark mode)
+
+   Two layers:
+     1. Foundation tokens (--porq-*)        — raw palette + scale
+     2. Semantic tokens   (--fg1, --bg, …)  — what you actually use
+
+   Dark mode: apply data-theme="dark" to <html> or <body>.
+============================================================= */
+
+/* -------- Fonts (Google Fonts CDN) --------
+   Display:  Newsreader  · humanist serif, optical sizing
+   Body:     Geist       · modern humanist sans, tabular figures
+   Mono:     Geist Mono  · for weights, nutrients, scale display
+
+   ⚠️ FLAG: no font files were provided. Substitutions chosen
+   for the "warm, precise" brief. Replace if Porquilo has bespoke type. */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap');
+
+:root {
+  /* =========================================================
+     1. FOUNDATION — Palette (raw values)
+     Punchier than v1. Backgrounds carry more pigment; the
+     clay accent is deeper and more saturated.
+     ========================================================= */
+
+  /* Paper — cool-warm chalk (limestone/papyrus). Warm undertone, NO yellow. */
+  --porq-paper-50:  #F2F0E8;
+  --porq-paper-100: #E9E5D8;
+  --porq-paper-200: #D9D2C0;
+  --porq-paper-300: #BFB6A0;
+  --porq-paper-400: #8A8273;
+
+  /* Espresso — warm dark text & dark-mode surface ramp.
+     Steps are spaced for clear visual lift between adjacent shades. */
+  --porq-espresso-50:  #4A3F33;
+  --porq-espresso-100: #382E22;
+  --porq-espresso-200: #2C2317;
+  --porq-espresso-300: #221B11;
+  --porq-espresso-400: #1A140C;
+  --porq-espresso-500: #100C07;   /* dark-mode page background */
+  --porq-espresso-700: #0A0704;
+  --porq-espresso-900: #050302;
+
+  /* Cocoa — secondary text & metadata (between paper and espresso) */
+  --porq-cocoa-300: #9E9684;
+  --porq-cocoa-500: #6B6353;
+  --porq-cocoa-700: #4A4234;
+
+  /* Clay — primary accent (now deeper paprika, more saturated) */
+  --porq-clay-50:  #FBE3D5;
+  --porq-clay-100: #F2C4A8;
+  --porq-clay-300: #DB8462;
+  --porq-clay-500: #B8431D;   /* primary brand accent */
+  --porq-clay-600: #E07553;   /* dark-mode accent (brightened) */
+  --porq-clay-700: #8C2F11;
+  --porq-clay-900: #4D1606;
+
+  /* Herb — confirmed / scale-weighed (high confidence) */
+  --porq-herb-50:  #E5EBC8;
+  --porq-herb-300: #A6B85F;
+  --porq-herb-500: #6A8530;
+  --porq-herb-600: #B5C765;   /* dark-mode brightened */
+  --porq-herb-700: #455A1C;
+
+  /* Honey — estimated / medium confidence */
+  --porq-honey-50:  #FAE6B3;
+  --porq-honey-300: #E0B954;
+  --porq-honey-500: #C18A0F;
+  --porq-honey-600: #E8B556;   /* dark-mode brightened */
+  --porq-honey-700: #7E5A05;
+
+  /* Brick — over / error */
+  --porq-brick-50:  #F8D9D1;
+  --porq-brick-500: #A8412F;
+  --porq-brick-600: #D86949;   /* dark-mode brightened */
+  --porq-brick-700: #6F2818;
+
+  /* Slate — info / neutral system messages */
+  --porq-slate-50:  #E1E4E8;
+  --porq-slate-500: #4A5560;
+  --porq-slate-700: #2A323C;
+
+  /* =========================================================
+     2. SEMANTIC — Light mode (default)
+     ========================================================= */
+
+  /* Surfaces */
+  --bg:            var(--porq-paper-50);   /* page background — warm chalk, not yellow */
+  --bg-elevated:   #FAFAF5;                /* cards above bg (near-white but warm) */
+  --bg-sunken:     var(--porq-paper-100);  /* inset wells */
+  --bg-overlay:    rgba(16, 12, 7, 0.55);  /* modal scrim, warm */
+
+  /* Foreground */
+  --fg1: var(--porq-espresso-400);   /* primary text — warm near-black */
+  --fg2: var(--porq-espresso-100);   /* secondary text */
+  --fg3: var(--porq-cocoa-500);      /* tertiary, metadata */
+  --fg4: var(--porq-cocoa-300);      /* hint, disabled */
+  --fg-on-accent: #FAFAF5;           /* text on accent fills */
+
+  /* Borders */
+  --border:        var(--porq-paper-300);
+  --border-strong: var(--porq-paper-400);
+  --border-soft:   var(--porq-paper-200);
+
+  /* Accent */
+  --accent:           var(--porq-clay-500);
+  --accent-hover:     var(--porq-clay-700);
+  --accent-press:     var(--porq-clay-900);
+  --accent-soft-bg:   var(--porq-clay-50);
+  --accent-soft-fg:   var(--porq-clay-700);
+
+  /* Confidence states — v0.3: measured / calculated / estimated.
+     Old high/med/low aliases preserved for backward compat. */
+  --confidence-measured-fg:   var(--porq-herb-700);
+  --confidence-measured-bg:   var(--porq-herb-50);
+  --confidence-measured-dot:  var(--porq-herb-500);
+  --confidence-calculated-fg: var(--porq-cocoa-700);
+  --confidence-calculated-bg: var(--porq-paper-100);
+  --confidence-calculated-dot: var(--porq-cocoa-500);
+  --confidence-estimated-fg:  var(--porq-honey-700);
+  --confidence-estimated-bg:  var(--porq-honey-50);
+  --confidence-estimated-dot: var(--porq-honey-500);
+
+  /* Aliases (old vocabulary) — keep components compiling.
+     high → measured · med → estimated · low → calculated */
+  --confidence-high-fg: var(--confidence-measured-fg);
+  --confidence-high-bg: var(--confidence-measured-bg);
+  --confidence-high-dot: var(--confidence-measured-dot);
+  --confidence-med-fg:  var(--confidence-estimated-fg);
+  --confidence-med-bg:  var(--confidence-estimated-bg);
+  --confidence-med-dot: var(--confidence-estimated-dot);
+  --confidence-low-fg:  var(--confidence-calculated-fg);
+  --confidence-low-bg:  var(--confidence-calculated-bg);
+  --confidence-low-dot: var(--confidence-calculated-dot);
+
+  /* Semantic system */
+  --success-fg: var(--porq-herb-700);
+  --success-bg: var(--porq-herb-50);
+  --warning-fg: var(--porq-honey-700);
+  --warning-bg: var(--porq-honey-50);
+  --danger-fg:  var(--porq-brick-700);
+  --danger-bg:  var(--porq-brick-50);
+  --info-fg:    var(--porq-slate-700);
+  --info-bg:    var(--porq-slate-50);
+
+  /* Shadows — warm-tinted, never blue/black */
+  --shadow-1: 0 1px 0 rgba(26, 18, 11, 0.04), 0 1px 2px rgba(26, 18, 11, 0.06);
+  --shadow-2: 0 1px 0 rgba(26, 18, 11, 0.05), 0 2px 8px rgba(26, 18, 11, 0.08);
+  --shadow-3: 0 4px 16px rgba(26, 18, 11, 0.10), 0 1px 3px rgba(26, 18, 11, 0.06);
+  --shadow-4: 0 14px 40px rgba(26, 18, 11, 0.18), 0 2px 6px rgba(26, 18, 11, 0.08);
+  --shadow-inset: inset 0 1px 0 rgba(255, 252, 246, 0.6), inset 0 -1px 0 rgba(26, 18, 11, 0.07);
+}
+
+/* =========================================================
+   2b. SEMANTIC — Dark mode
+   "Kitchen at night, only the scale lit."
+   Espresso surfaces, cream text, brightened clay accent.
+   ========================================================= */
+
+[data-theme="dark"] {
+  /* Surfaces — wider lightness steps so cards clearly lift off the page */
+  --bg:            #0E0B08;                /* deepest — page bg */
+  --bg-elevated:   #1F1B15;                /* cards float visibly above bg */
+  --bg-sunken:     #060403;                /* inset wells (darker than page) */
+  --bg-overlay:    rgba(0, 0, 0, 0.72);
+
+  /* Foreground — warm cream, high contrast against bg */
+  --fg1: #F5EDDD;
+  --fg2: #D6CCB6;
+  --fg3: #A29888;
+  --fg4: #6A6155;
+  --fg-on-accent: #0E0B08;
+
+  /* Borders — visibly bronze on espresso */
+  --border:        #3A2F22;
+  --border-strong: #524432;
+  --border-soft:   #2A2218;
+
+  /* Accent — brightened terracotta for dark surfaces */
+  --accent:           var(--porq-clay-600);     /* #E07553 */
+  --accent-hover:     #EF8869;
+  --accent-press:     var(--porq-clay-300);
+  --accent-soft-bg:   rgba(224, 117, 83, 0.14);
+  --accent-soft-fg:   #EF8869;
+
+  /* Confidence — brightened to read clearly on espresso */
+  --confidence-measured-fg:   #C8DC75;
+  --confidence-measured-bg:   rgba(165, 188, 73, 0.18);
+  --confidence-measured-dot:  #B5C765;
+  --confidence-calculated-fg: #B5A893;
+  --confidence-calculated-bg: rgba(168, 145, 106, 0.12);
+  --confidence-calculated-dot: #A29888;
+  --confidence-estimated-fg:  #F0C46A;
+  --confidence-estimated-bg:  rgba(228, 185, 84, 0.15);
+  --confidence-estimated-dot: #E8B556;
+
+  /* Aliases */
+  --confidence-high-fg: var(--confidence-measured-fg);
+  --confidence-high-bg: var(--confidence-measured-bg);
+  --confidence-high-dot: var(--confidence-measured-dot);
+  --confidence-med-fg:  var(--confidence-estimated-fg);
+  --confidence-med-bg:  var(--confidence-estimated-bg);
+  --confidence-med-dot: var(--confidence-estimated-dot);
+  --confidence-low-fg:  var(--confidence-calculated-fg);
+  --confidence-low-bg:  var(--confidence-calculated-bg);
+  --confidence-low-dot: var(--confidence-calculated-dot);
+
+  /* Semantic */
+  --success-fg: #C8DC75;
+  --success-bg: rgba(165, 188, 73, 0.18);
+  --warning-fg: #F0C46A;
+  --warning-bg: rgba(228, 185, 84, 0.15);
+  --danger-fg:  #E89478;
+  --danger-bg:  rgba(216, 105, 73, 0.18);
+  --info-fg:    #A8B8C8;
+  --info-bg:    rgba(98, 110, 122, 0.20);
+
+  /* Shadows — true black drops + a faint inset top-highlight so cards
+     read as "lifted" against the surface, the way they do in light mode. */
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 rgba(255, 240, 210, 0.04);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.55),
+              inset 0 1px 0 rgba(255, 240, 210, 0.06);
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.65),
+              inset 0 1px 0 rgba(255, 240, 210, 0.08);
+  --shadow-4: 0 20px 56px rgba(0, 0, 0, 0.75),
+              inset 0 1px 0 rgba(255, 240, 210, 0.10);
+  --shadow-inset: inset 0 1px 0 rgba(255, 240, 210, 0.05),
+                  inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* =========================================================
+   Type — families & scale (shared across themes)
+   ========================================================= */
+
+:root {
+  --font-display: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+  --font-body:    'Geist', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --t-display: clamp(2.5rem, 5vw, 3.75rem);
+  --t-h1:      clamp(2rem, 3.5vw, 2.5rem);
+  --t-h2:      1.75rem;
+  --t-h3:      1.375rem;
+  --t-h4:      1.125rem;
+  --t-body:    1rem;
+  --t-small:   0.875rem;
+  --t-caption: 0.75rem;
+  --t-weight:  clamp(2.75rem, 8vw, 4rem);
+
+  --lh-tight: 1.1;
+  --lh-snug:  1.25;
+  --lh-body:  1.55;
+  --lh-loose: 1.7;
+
+  --track-tight: -0.02em;
+  --track-snug:  -0.01em;
+  --track-wide:   0.04em;
+  --track-caps:   0.08em;
+
+  /* Spacing — 4 pt base */
+  --space-1:  4px;  --space-2:  8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px; --space-20: 80px;
+
+  /* Radii — kitchenware soft */
+  --r-1: 4px; --r-2: 8px; --r-3: 12px; --r-4: 18px; --r-5: 28px; --r-full: 999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 320ms;
+}
+
+/* =============================================================
+   Semantic element styles
+============================================================= */
+
+body, .porq {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--fg1);
+  background: var(--bg);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color 240ms var(--ease-out), color 240ms var(--ease-out);
+}
+
+.porq-display {
+  font-family: var(--font-display);
+  font-size: var(--t-display);
+  font-weight: 400;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--track-tight);
+  font-variation-settings: 'opsz' 60;
+  color: var(--fg1);
+}
+
+.porq-h1 {
+  font-family: var(--font-display);
+  font-size: var(--t-h1);
+  font-weight: 400;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--track-tight);
+  font-variation-settings: 'opsz' 36;
+}
+
+.porq-h2 {
+  font-family: var(--font-display);
+  font-size: var(--t-h2);
+  font-weight: 500;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--track-snug);
+}
+
+.porq-h3 {
+  font-family: var(--font-body);
+  font-size: var(--t-h3);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--track-snug);
+}
+
+.porq-h4 {
+  font-family: var(--font-body);
+  font-size: var(--t-h4);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+}
+
+.porq-body  { font-size: var(--t-body);  line-height: var(--lh-body); }
+.porq-small { font-size: var(--t-small); line-height: var(--lh-snug); color: var(--fg2); }
+.porq-caption {
+  font-size: var(--t-caption);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--fg3);
+}
+
+.porq-mono, code, kbd, samp {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  font-feature-settings: 'zero', 'ss01';
+}
+
+/* The signature Porquilo numeral — a weight readout */
+.porq-weight {
+  font-family: var(--font-mono);
+  font-size: var(--t-weight);
+  font-weight: 500;
+  letter-spacing: var(--track-tight);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg1);
+}
+.porq-weight-unit {
+  font-family: var(--font-body);
+  font-size: 0.45em;
+  font-weight: 400;
+  color: var(--fg3);
+  margin-inline-start: 0.25em;
+  letter-spacing: 0;
+}
