@@ -8,19 +8,7 @@ import { TableHeaders } from '../../components/TableHeaders'
 import { Num } from '../../components/Num'
 import { CreateFoodSheet } from './CreateFoodSheet'
 import type { FoodResult } from '../../types/api'
-
-// ── Utilities ──────────────────────────────────────────────────────────────
-
-function matchesFilter(source: string, filter: string): boolean {
-  if (filter === 'All') return true
-  const s = source.toLowerCase()
-  if (filter === 'Custom') return s === 'custom'
-  if (filter === 'USDA') return s.includes('usda')
-  if (filter === 'Open Food Facts') return s.includes('openfoodfacts') || s.includes('open food facts')
-  if (filter === 'Drinks') return s === 'drinks'
-  if (filter === 'Mealie') return s === 'mealie'
-  return true
-}
+import { matchesFilter } from './libraryUtils'
 
 // ── Placeholder recipe data ────────────────────────────────────────────────
 
