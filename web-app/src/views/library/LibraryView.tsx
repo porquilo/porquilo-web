@@ -162,7 +162,7 @@ export default function LibraryView() {
 
   const displayFoods = allFoods.filter(f => matchesFilter(f.source, filter))
 
-  const foodFilters = ['All', 'Custom', 'USDA', 'Open Food Facts', 'Drinks']
+  const foodFilters = ['All', 'Custom', 'USDA', 'Open Food Facts']
   const recipeFilters = ['All', 'Custom', 'Mealie']
   const activeFilters = tab === 'foods' ? foodFilters : recipeFilters
 
