@@ -58,7 +58,7 @@ function FoodRow({ food, meals }: FoodRowProps) {
   const createEntry = useCreateEntry()
 
   const num = parseFloat(qty) || 0
-  const kcalPer100 = food.nutrients['calories_kcal'] ?? 0
+  const kcalPer100 = Number(food.nutrients['calories_kcal'] ?? 0)
   const kcalLogged = Math.round(num * kcalPer100 / 100)
   const unit = food.default_unit === 'ml' ? 'ml' : 'g'
 
@@ -98,9 +98,9 @@ function FoodRow({ food, meals }: FoodRowProps) {
       </div>
       <ConfidenceBadge level="measured">{food.source}</ConfidenceBadge>
       <Num>{Math.round(kcalPer100)}</Num>
-      <Num suffix="g">{(food.nutrients['protein_g'] ?? 0).toFixed(1)}</Num>
-      <Num suffix="g">{(food.nutrients['fat_g'] ?? 0).toFixed(1)}</Num>
-      <Num suffix="g">{(food.nutrients['carbs_g'] ?? 0).toFixed(1)}</Num>
+      <Num suffix="g">{Number(food.nutrients['protein_g'] ?? 0).toFixed(1)}</Num>
+      <Num suffix="g">{Number(food.nutrients['fat_g'] ?? 0).toFixed(1)}</Num>
+      <Num suffix="g">{Number(food.nutrients['carbs_g'] ?? 0).toFixed(1)}</Num>
       <div style={{ display: 'inline-flex', alignItems: 'center', background: 'var(--bg-sunken)', borderRadius: 8, padding: '5px 10px' }}>
         <input
           value={qty}
