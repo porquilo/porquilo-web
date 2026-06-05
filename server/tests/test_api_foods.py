@@ -155,14 +155,63 @@ def test_source_filter_returns_key_string_not_uuid(client, db_session):
         pass
 
 
-def test_min_length_2_enforced(client):
+def test_short_q_returns_browse_mode(client, db_session):
+    fid = _insert_food(db_session, name="Avocado")
+    _add_nutrient(db_session, fid)
+
     resp = client.get("/api/foods", params={"q": "a"})
-    assert resp.status_code == 422
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
 
 
-def test_missing_q_returns_422(client):
+def test_missing_q_returns_all_foods(client, db_session):
+    fid = _insert_food(db_session, name="Zucchini")
+    _add_nutrient(db_session, fid)
+
     resp = client.get("/api/foods")
-    assert resp.status_code == 422
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+    assert any(f["name"] == "Zucchini" for f in resp.json())
+
+
+def test_browse_alphabetical_order(client, db_session):
+    for name in ("Zucchini", "Apple", "Mango"):
+        fid = _insert_food(db_session, name=name)
+        _add_nutrient(db_session, fid)
+
+    resp = client.get("/api/foods")
+    assert resp.status_code == 200
+    names = [f["name"] for f in resp.json()]
+    assert names.index("Apple") < names.index("Mango") < names.index("Zucchini")
+
+
+def test_browse_source_filter(client, db_session):
+    fid_c = _insert_food(db_session, name="Custom Oats", source_key="custom")
+    _add_nutrient(db_session, fid_c)
+    fid_u = _insert_food(db_session, name="USDA Oats", source_key="usda")
+    _add_nutrient(db_session, fid_u)
+
+    resp = client.get("/api/foods", params={"source": "custom"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert all(f["source"] == "custom" for f in data)
+    assert any(f["name"] == "Custom Oats" for f in data)
+    assert not any(f["name"] == "USDA Oats" for f in data)
+
+
+def test_offset_pagination(client, db_session):
+    for i in range(5):
+        fid = _insert_food(db_session, name=f"Page Food {i:02d}")
+        _add_nutrient(db_session, fid)
+
+    first = client.get("/api/foods", params={"limit": 2, "offset": 0}).json()
+    second = client.get("/api/foods", params={"limit": 2, "offset": 2}).json()
+
+    assert len(first) == 2
+    assert len(second) == 2
+    first_ids = {f["id"] for f in first}
+    second_ids = {f["id"] for f in second}
+    assert first_ids.isdisjoint(second_ids)
 
 
 def test_foods_without_nutrients_excluded(client, db_session):

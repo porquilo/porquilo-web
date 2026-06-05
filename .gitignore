@@ -58,3 +58,6 @@ Thumbs.db
 
 # Claude
 .claude/
+
+# Playwright test reports
+playwright-report/
