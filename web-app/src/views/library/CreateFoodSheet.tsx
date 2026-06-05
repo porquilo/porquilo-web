@@ -190,6 +190,7 @@ export function CreateFoodSheet({ open, onClose, onCreated }: CreateFoodSheetPro
     }}>
       {/* Scrim */}
       <div
+        data-testid="sheet-scrim"
         onClick={handleClose}
         style={{
           position: 'absolute',

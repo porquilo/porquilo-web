@@ -38,6 +38,7 @@ export function TodayView({ onOpenLog, selectedDate, onDateChange }: TodayViewPr
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
+              data-testid="prev-day"
               onClick={() => onDateChange(addDays(selectedDate, -1))}
               style={{
                 background: 'transparent',
@@ -66,6 +67,7 @@ export function TodayView({ onOpenLog, selectedDate, onDateChange }: TodayViewPr
             </h1>
 
             <button
+              data-testid="next-day"
               onClick={() => onDateChange(addDays(selectedDate, 1))}
               style={{
                 background: 'transparent',
