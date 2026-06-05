@@ -144,38 +144,43 @@ def _food_out(food: Food, source_key: str, session: Session) -> FoodOut:
 
 @router.get("", response_model=list[FoodRead])
 def search_foods(
-    q: str = Query(min_length=2),
+    q: Optional[str] = None,
     source: Optional[str] = None,
     limit: int = Query(default=20, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ) -> list[FoodRead]:
-    q_lower = q.lower()
-
     has_nutrients = sa.exists(
         select(FoodNutrient.id).where(FoodNutrient.food_id == Food.id).correlate(Food)
     )
 
-    stmt = (
+    base = (
         select(Food, FoodSource.key.label("source_key"))
         .join(FoodSource, Food.food_source_id == FoodSource.id)
-        .where(
+        .where(has_nutrients)
+    )
+
+    if source is not None:
+        base = base.where(FoodSource.key == source)
+
+    if q and len(q) >= 2:
+        q_lower = q.lower()
+        stmt = base.where(
             sa.or_(
                 Food.name.ilike(f"%{q}%"),
                 Food.brand.ilike(f"%{q}%"),
             )
         )
-        .where(has_nutrients)
-    )
+        order_expr = sa.case(
+            (sa.func.lower(Food.name) == q_lower, 0),
+            (sa.func.lower(Food.name).like(f"{q_lower}%"), 1),
+            else_=2,
+        )
+        stmt = stmt.order_by(order_expr)
+    else:
+        stmt = base.order_by(Food.name)
 
-    if source is not None:
-        stmt = stmt.where(FoodSource.key == source)
-
-    order_expr = sa.case(
-        (sa.func.lower(Food.name) == q_lower, 0),
-        (sa.func.lower(Food.name).like(f"{q_lower}%"), 1),
-        else_=2,
-    )
-    stmt = stmt.order_by(order_expr).limit(limit)
+    stmt = stmt.offset(offset).limit(limit)
 
     food_rows = session.execute(stmt).all()
     if not food_rows:
