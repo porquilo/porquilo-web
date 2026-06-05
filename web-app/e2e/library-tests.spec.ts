@@ -36,7 +36,7 @@ test.describe('Library view', () => {
 
   test('shows correct filter chips for Foods tab', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'All' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Custom' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Custom', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'USDA' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Open Food Facts' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Drinks' })).not.toBeVisible()
@@ -45,14 +45,14 @@ test.describe('Library view', () => {
   test('shows correct filter chips for Recipes tab', async ({ page }) => {
     await page.getByRole('button', { name: /Recipes/ }).click()
     await expect(page.getByRole('button', { name: 'All' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Custom' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Custom', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Mealie' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'USDA' })).not.toBeVisible()
   })
 
   test('filter chips reset to All when switching tabs', async ({ page }) => {
     // Select a non-All chip on Foods
-    await page.getByRole('button', { name: 'Custom' }).click()
+    await page.getByRole('button', { name: 'Custom', exact: true }).click()
     // Switch to Recipes — filter should reset
     await page.getByRole('button', { name: /Recipes/ }).click()
     // Switch back — All should be active again (Custom chip exists but All is selected)
@@ -66,14 +66,14 @@ test.describe('Library view', () => {
     await input.fill('test')
     await expect(input).toHaveValue('test')
     // The clear button appears and clears the input
-    await page.getByRole('button').filter({ hasText: '' }).last().click()
+    await page.getByRole('button', { name: 'Clear search' }).click()
     await expect(input).toHaveValue('')
   })
 
   test('Add custom food button opens the sheet', async ({ page }) => {
     await page.getByRole('button', { name: 'Add custom food' }).click()
     await expect(page.getByText('Add custom food').nth(1)).toBeVisible()
-    await expect(page.getByLabel('Name *')).toBeVisible()
+    await expect(page.getByText('Name *')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Add to library' })).toBeVisible()
   })
 
@@ -87,9 +87,9 @@ test.describe('Library view', () => {
   test('CreateFoodSheet closes on scrim click', async ({ page }) => {
     await page.getByRole('button', { name: 'Add custom food' }).click()
     await expect(page.getByRole('button', { name: 'Add to library' })).toBeVisible()
-    // Click the scrim (top-left of overlay, outside the drawer)
-    await page.mouse.click(100, 300)
-    await expect(page.getByRole('button', { name: 'Add to library' })).not.toBeVisible()
+    // Click the scrim — opacity transitions to 0 when open becomes false
+    await page.locator('[data-testid="sheet-scrim"]').click()
+    await expect(page.locator('[data-testid="sheet-scrim"]')).toHaveCSS('opacity', '0')
   })
 
   test('Add recipe button label shows on Recipes tab', async ({ page }) => {

@@ -263,6 +263,7 @@ export default function LibraryView() {
           />
           {q && (
             <button
+              aria-label="Clear search"
               onClick={() => setQ('')}
               style={{
                 background: 'transparent',
