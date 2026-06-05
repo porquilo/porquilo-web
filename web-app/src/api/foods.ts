@@ -7,6 +7,10 @@ export function searchFoods(q: string, source?: string): Promise<FoodResult[]> {
   return apiFetch<FoodResult[]>(`/api/foods?${params.toString()}`)
 }
 
+export function listFoods(): Promise<FoodResult[]> {
+  return apiFetch<FoodResult[]>('/api/foods')
+}
+
 export function createFood(body: CreateFoodRequest): Promise<FoodOut> {
   return apiFetch<FoodOut>('/api/foods', {
     method: 'POST',
