@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useFoods, useAllFoods } from '../../hooks/useFoods'
-import { useMeals } from '../../hooks/useMeals'
-import { useCreateEntry } from '../../hooks/useEntries'
 import { useToast } from '../../contexts/ToastContext'
 import { Button } from '../../components/Button'
 import { ConfidenceBadge } from '../../components/ConfidenceBadge'
@@ -9,18 +7,9 @@ import { WIcon, WI } from '../../components/Icon'
 import { TableHeaders } from '../../components/TableHeaders'
 import { Num } from '../../components/Num'
 import { CreateFoodSheet } from './CreateFoodSheet'
-import type { FoodResult, Meal } from '../../types/api'
+import type { FoodResult } from '../../types/api'
 
 // ── Utilities ──────────────────────────────────────────────────────────────
-
-function getContextualMealId(meals: Meal[]): string {
-  const hour = new Date().getHours()
-  const find = (name: string) => meals.find(m => m.name.toLowerCase() === name)?.id
-  if (hour < 11)  return find('breakfast') ?? meals[0]?.id ?? ''
-  if (hour < 14)  return find('lunch')     ?? meals[0]?.id ?? ''
-  if (hour >= 18) return find('dinner')    ?? meals[0]?.id ?? ''
-  return find('snack') ?? meals[0]?.id ?? ''
-}
 
 function matchesFilter(source: string, filter: string): boolean {
   if (filter === 'All') return true
@@ -45,43 +34,14 @@ const RECIPES = [
 
 // ── FoodRow ────────────────────────────────────────────────────────────────
 
-const FOODS_GRID = '2fr 1fr 1fr 1fr 1fr 1fr 100px 90px'
+const FOODS_GRID = '2fr 1fr 1fr 1fr 1fr 1fr'
 
 interface FoodRowProps {
   food: FoodResult
-  meals: Meal[]
 }
 
-function FoodRow({ food, meals }: FoodRowProps) {
-  const [qty, setQty] = useState('')
-  const { setToast } = useToast()
-  const createEntry = useCreateEntry()
-
-  const num = parseFloat(qty) || 0
+function FoodRow({ food }: FoodRowProps) {
   const kcalPer100 = Number(food.nutrients['calories_kcal'] ?? 0)
-  const kcalLogged = Math.round(num * kcalPer100 / 100)
-  const unit = food.default_unit === 'ml' ? 'ml' : 'g'
-
-  function handleLog() {
-    if (num <= 0) return
-    const mealId = getContextualMealId(meals)
-    createEntry.mutate(
-      {
-        food_id: food.id,
-        meal_id: mealId,
-        weight_g: num,
-        eaten_at: new Date().toISOString(),
-        weight_source: 'manual',
-        input_method: 'library',
-      },
-      {
-        onSuccess: () => {
-          setToast(`Logged — ${food.name}, ${qty}${unit}, ${kcalLogged} kcal`)
-          setQty('')
-        },
-      }
-    )
-  }
 
   return (
     <div style={{
@@ -96,52 +56,11 @@ function FoodRow({ food, meals }: FoodRowProps) {
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg1)' }}>{food.name}</div>
         {food.brand && <div style={{ fontSize: 11, color: 'var(--fg3)', marginTop: 1 }}>{food.brand}</div>}
       </div>
-      <ConfidenceBadge level="measured">{food.source}</ConfidenceBadge>
+      <div><ConfidenceBadge level="measured">{food.source}</ConfidenceBadge></div>
       <Num>{Math.round(kcalPer100)}</Num>
       <Num suffix="g">{Number(food.nutrients['protein_g'] ?? 0).toFixed(1)}</Num>
       <Num suffix="g">{Number(food.nutrients['fat_g'] ?? 0).toFixed(1)}</Num>
       <Num suffix="g">{Number(food.nutrients['carbs_g'] ?? 0).toFixed(1)}</Num>
-      <div style={{ display: 'inline-flex', alignItems: 'center', background: 'var(--bg-sunken)', borderRadius: 8, padding: '5px 10px' }}>
-        <input
-          value={qty}
-          onChange={e => setQty(e.target.value)}
-          placeholder="0"
-          type="number"
-          min="0"
-          style={{
-            width: 50,
-            border: 0,
-            background: 'transparent',
-            outline: 'none',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 13,
-            color: 'var(--fg1)',
-            textAlign: 'right',
-            fontVariantNumeric: 'tabular-nums',
-            MozAppearance: 'textfield',
-          } as React.CSSProperties}
-        />
-        <span style={{ fontSize: 11, color: 'var(--fg3)', marginLeft: 2 }}>{unit}</span>
-      </div>
-      <button
-        disabled={num <= 0 || createEntry.isPending}
-        onClick={handleLog}
-        style={{
-          background: 'var(--accent)',
-          color: 'var(--fg-on-accent)',
-          border: 0,
-          borderRadius: 8,
-          padding: '7px 12px',
-          fontFamily: 'var(--font-body)',
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: num > 0 ? 'pointer' : 'default',
-          opacity: num > 0 ? 1 : 0.4,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {num > 0 ? `Log · ${kcalLogged}kcal` : 'Log'}
-      </button>
     </div>
   )
 }
@@ -228,7 +147,6 @@ export default function LibraryView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [extraFoods, setExtraFoods] = useState<FoodResult[]>([])
 
-  const { data: meals = [] } = useMeals()
   const { data: allFoodsData } = useAllFoods()
   const { data: searchData } = useFoods(q)
 
@@ -406,11 +324,11 @@ export default function LibraryView() {
         {tab === 'foods' ? (
           <>
             <TableHeaders
-              cols={['Name', 'Source', 'kcal/100g', 'Protein', 'Fat', 'Carbs', 'Quantity', '']}
+              cols={['Name', 'Source', 'kcal/100g', 'Protein', 'Fat', 'Carbs']}
               gridTemplateColumns={FOODS_GRID}
             />
             {displayFoods.map(food => (
-              <FoodRow key={food.id} food={food} meals={meals} />
+              <FoodRow key={food.id} food={food} />
             ))}
             {displayFoods.length === 0 && (
               <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--fg3)', fontSize: 13 }}>
