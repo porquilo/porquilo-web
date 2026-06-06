@@ -39,6 +39,7 @@ class FoodRead(BaseModel):
     id: UUID
     name: str
     brand: Optional[str]
+    display_name: Optional[str]
     source: str
     default_unit: str
     nutrients: dict[str, Decimal]
@@ -99,6 +100,7 @@ class FoodOut(BaseModel):
     id: UUID
     name: str
     brand: Optional[str] = None
+    display_name: Optional[str] = None
     source: str
     default_unit: str
     nutrients: list[NutrientOut]
@@ -125,6 +127,7 @@ def _food_out(food: Food, source_key: str, session: Session) -> FoodOut:
         id=food.id,
         name=food.name,
         brand=food.brand,
+        display_name=food.display_name,
         source=source_key,
         default_unit=food.default_unit,
         nutrients=[
@@ -220,6 +223,7 @@ def search_foods(
             id=food.id,
             name=food.name,
             brand=food.brand,
+            display_name=food.display_name,
             source=source_key,
             default_unit=food.default_unit,
             nutrients=nutrients_by_food.get(food.id, {}),
