@@ -9,7 +9,14 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import pytest
 import sqlalchemy as sa
+
+
+@pytest.fixture(autouse=True)
+def _no_usda(monkeypatch):
+    """Prevent all tests in this module from making real USDA HTTP calls."""
+    monkeypatch.setattr("porquilo.routers.foods.search_usda", lambda *_args, **_kwargs: [])
 
 _NOW = datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
 
