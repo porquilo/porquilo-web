@@ -19,6 +19,8 @@ _USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 
 USDA_NUTRIENT_MAP: dict[int, str] = {
     1008: "calories_kcal",
+    2047: "calories_kcal",   # Foundation: Atwater General Factors (kcal)
+    2048: "calories_kcal",   # Foundation: Atwater Specific Factors (kcal)
     1003: "protein_g",
     1005: "carbs_g",
     1004: "fat_g",
@@ -117,7 +119,9 @@ def upsert_usda_food(usda_food: dict, session: Session) -> Food:
     brand = usda_food.get("brandOwner") or usda_food.get("brandName")
 
     # Parse nutrients first so source_completeness is ready before the food row is written.
-    found_nutrients: list[tuple[str, float]] = []
+    # Multiple USDA nutrient IDs can map to the same key (e.g. 1008/2047/2048 → calories_kcal);
+    # keep the highest value seen so methodology variants never zero-out a nutrient.
+    best_nutrients: dict[str, float] = {}
     for n in usda_food.get("foodNutrients", []):
         # Use nutrientId (FDC scheme e.g. 1003) not nutrientNumber (NBDB scheme e.g. 203).
         nutrient_id_int = n.get("nutrientId")
@@ -129,8 +133,11 @@ def upsert_usda_food(usda_food: dict, session: Session) -> Food:
         value = n.get("value")
         if value is None:
             continue
-        found_nutrients.append((mapped_key, float(value)))
+        fvalue = float(value)
+        if mapped_key not in best_nutrients or fvalue > best_nutrients[mapped_key]:
+            best_nutrients[mapped_key] = fvalue
 
+    found_nutrients = list(best_nutrients.items())
     source_completeness = round(len(found_nutrients) / TOTAL_TRACKED_NUTRIENTS, 4)
 
     is_insert = existing is None
