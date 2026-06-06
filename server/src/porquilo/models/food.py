@@ -31,3 +31,11 @@ class Food(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False),
     )
+    source_fetched_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=sa.Column(sa.DateTime(timezone=True), nullable=True),
+    )
+    source_completeness: Optional[float] = Field(
+        default=None,
+        sa_column=sa.Column(sa.Float, nullable=True),
+    )
