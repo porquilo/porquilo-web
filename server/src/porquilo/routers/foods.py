@@ -18,6 +18,7 @@ from porquilo.models import (
     FoodVariant,
     NutrientDefinition,
 )
+from porquilo.services.usda_service import search_usda, upsert_usda_food
 
 router = APIRouter(prefix="/api/foods", tags=["foods"])
 
@@ -183,6 +184,16 @@ def search_foods(
     stmt = stmt.offset(offset).limit(limit)
 
     food_rows = session.execute(stmt).all()
+
+    # Two-pass: fill from USDA when local cache doesn't satisfy the request.
+    if q and len(q) >= 2 and len(food_rows) < limit:
+        usda_results = search_usda(q, session, page_size=limit - len(food_rows))
+        if usda_results:
+            for usda_food in usda_results:
+                upsert_usda_food(usda_food, session)
+            session.commit()
+            food_rows = session.execute(stmt).all()
+
     if not food_rows:
         return []
 

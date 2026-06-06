@@ -4,6 +4,7 @@ from porquilo.services.settings_service import (
     get_setting,
     set_setting,
 )
+from porquilo.services.usda_service import search_usda, upsert_usda_food
 
 __all__ = [
     "FoodRecord",
@@ -11,4 +12,6 @@ __all__ = [
     "KNOWN_SETTINGS_KEYS",
     "get_setting",
     "set_setting",
+    "search_usda",
+    "upsert_usda_food",
 ]
