@@ -39,3 +39,11 @@ class Food(SQLModel, table=True):
         default=None,
         sa_column=sa.Column(sa.Float, nullable=True),
     )
+    display_name: Optional[str] = Field(
+        default=None,
+        sa_column=sa.Column(sa.Text, nullable=True),
+    )
+    display_name_status: Optional[str] = Field(
+        default=None,
+        sa_column=sa.Column(sa.Text, nullable=True),
+    )
