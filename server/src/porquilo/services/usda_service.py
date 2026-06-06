@@ -89,7 +89,15 @@ def search_usda(query: str, session: Session, page_size: int = 10) -> list[dict]
         logger.warning("USDA search returned %d for query %r", response.status_code, query)
         return []
 
-    return response.json().get("foods", [])
+    try:
+        return response.json().get("foods", [])
+    except ValueError:
+        logger.warning(
+            "USDA search returned non-JSON body (status %d) for query %r",
+            response.status_code,
+            query,
+        )
+        return []
 
 
 def upsert_usda_food(usda_food: dict, session: Session) -> Food:
