@@ -199,6 +199,40 @@ def test_source_completeness_range(db_session):
     assert food.source_completeness == round(8 / 27, 4)
 
 
+def test_upsert_calories_max_wins_across_methodology_variants(db_session):
+    """When 1008, 2047, and 2048 all appear, the highest kcal value is stored."""
+    usda_service._nutrient_id_cache.clear()
+
+    food_with_variants = {
+        "fdcId": 999001,
+        "description": "Test Foundation Food",
+        "brandOwner": None,
+        "brandName": None,
+        "foodNutrients": [
+            {"nutrientId": 1008, "nutrientNumber": "208", "value": 0.0},    # calories via 1008 (absent)
+            {"nutrientId": 2047, "nutrientNumber": "2047", "value": 150.0}, # Atwater General
+            {"nutrientId": 2048, "nutrientNumber": "2048", "value": 163.0}, # Atwater Specific (highest)
+            {"nutrientId": 1003, "nutrientNumber": "203", "value": 25.0},   # protein
+        ],
+    }
+
+    food = upsert_usda_food(food_with_variants, db_session)
+    db_session.flush()
+
+    # Only one calories_kcal row should exist, with value 163 (the max).
+    cal_nutrient_id = db_session.execute(
+        sa.text("SELECT id FROM nutrient_definitions WHERE key = 'calories_kcal'")
+    ).scalar()
+    rows = db_session.execute(
+        sa.text(
+            "SELECT value_per_100 FROM food_nutrients WHERE food_id = :fid AND nutrient_id = :nid"
+        ),
+        {"fid": food.id.hex, "nid": str(cal_nutrient_id)},
+    ).fetchall()
+    assert len(rows) == 1
+    assert float(rows[0][0]) == 163.0
+
+
 # ---------------------------------------------------------------------------
 # upsert_usda_food — UPDATE path
 # ---------------------------------------------------------------------------
