@@ -135,12 +135,12 @@ def test_search_usda_returns_empty_on_non_json_200(db_session):
 
 
 def test_search_usda_sends_correct_data_types(db_session):
-    """dataType filter includes Foundation and Branded; SR Legacy excluded."""
+    """dataType filter includes Foundation; Branded and SR Legacy excluded."""
     with patch("porquilo.services.usda_service.httpx.get", return_value=_mock_200(_USDA_SEARCH_RESPONSE)) as mock_get:
         search_usda("apple", db_session, page_size=5)
 
     params = mock_get.call_args[1]["params"]
-    assert set(params["dataType"]) == {"Foundation", "Branded"}
+    assert set(params["dataType"]) == {"Foundation"}
     assert params["pageSize"] == 5
     assert params["query"] == "apple"
 

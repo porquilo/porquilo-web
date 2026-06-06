@@ -79,7 +79,7 @@ def search_usda(query: str, session: Session, page_size: int = 10) -> list[dict]
                 "query": query,
                 "pageSize": page_size,
                 "api_key": api_key,
-                "dataType": ["Foundation", "Branded"],
+                "dataType": ["Foundation"],
             },
             timeout=8.0,
         )
