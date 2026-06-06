@@ -8,10 +8,9 @@ from sqlmodel import Session
 
 logger = logging.getLogger(__name__)
 
-LLM_BASE_URL: str = os.environ.get("LLM_BASE_URL", "")
-LLM_API_KEY: str = os.environ.get("LLM_API_KEY", "ollama")
-LLM_MODEL: str = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 LLM_TIMEOUT_SECONDS: float = float(os.environ.get("LLM_TIMEOUT_SECONDS", "2.5"))
+
+_PROMPT_SETTINGS_KEY = "food_name_normalization_prompt"
 
 DEFAULT_FOOD_NAME_NORMALIZATION_PROMPT: str = (
     "You convert USDA food database descriptions into short, natural food names. USDA "
@@ -24,34 +23,39 @@ DEFAULT_FOOD_NAME_NORMALIZATION_PROMPT: str = (
 
 
 def is_llm_configured() -> bool:
-    return bool(LLM_BASE_URL)
+    return bool(os.environ.get("LLM_BASE_URL"))
 
 
-def normalize_food_name(raw_name: str, session: Session) -> Optional[str]:
+def normalize_food_name(food_name: str, session: Session) -> Optional[str]:
     if not is_llm_configured():
         return None
 
-    from porquilo.services.settings_service import get_setting
+    from porquilo.models.app_setting import AppSetting
 
+    row = session.get(AppSetting, _PROMPT_SETTINGS_KEY)
     system_prompt = (
-        get_setting("llm.food_name_normalization_prompt", session)
+        (row.value if row and row.value else None)
         or DEFAULT_FOOD_NAME_NORMALIZATION_PROMPT
     )
 
     try:
         from openai import OpenAI
 
-        client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": raw_name},
-            ],
+        client = OpenAI(
+            base_url=os.environ["LLM_BASE_URL"],
+            api_key=os.environ.get("LLM_API_KEY", "not-needed"),
             timeout=LLM_TIMEOUT_SECONDS,
         )
-        content = response.choices[0].message.content
-        return content.strip() if content else None
-    except Exception as exc:
-        logger.debug("LLM normalization failed for %r: %s", raw_name, exc)
+        model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": food_name},
+            ],
+        )
+        result = response.choices[0].message.content
+        return result.strip() if result else None
+    except Exception:
+        logger.debug("LLM call failed for %r", food_name, exc_info=True)
         return None
