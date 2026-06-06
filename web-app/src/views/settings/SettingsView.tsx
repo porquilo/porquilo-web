@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Button } from '../../components/Button'
 import { ConfidenceBadge } from '../../components/ConfidenceBadge'
 import { useToast } from '../../contexts/ToastContext'
+import { getSettings, putSetting } from '../../api/settings'
+import type { SettingRead } from '../../api/settings'
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -92,32 +94,49 @@ function SettingsRow({ label, children }: { label: string; children: ReactNode }
 }
 
 
-function IntegrationRow({
+const helperStyle: CSSProperties = { fontSize: 11, color: 'var(--fg3)', marginTop: 4 }
+
+function IntegrationGroup({
   name,
-  detail,
-  level,
-  status,
+  badge,
+  helper,
+  children,
+  onSave,
 }: {
   name: string
-  detail: string
-  level: 'measured' | 'estimated' | 'calculated'
-  status: string
+  badge: ReactNode
+  helper: string
+  children: ReactNode
+  onSave: () => Promise<void>
 }) {
+  const [saving, setSaving] = useState(false)
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await onSave()
+    } finally {
+      setSaving(false)
+    }
+  }
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr auto auto',
-      gap: 12,
-      alignItems: 'center',
-      padding: '8px 0',
+      padding: '12px 0',
       borderBottom: '1px dashed var(--border-soft)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
     }}>
-      <div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg1)' }}>{name}</div>
-        <div style={{ fontSize: 11, color: 'var(--fg3)', marginTop: 2 }}>{detail}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg1)' }}>{name}</span>
+        {badge}
       </div>
-      <ConfidenceBadge level={level}>{status}</ConfidenceBadge>
-      <Button variant="ghost" disabled>Configure</Button>
+      {children}
+      <div style={helperStyle}>{helper}</div>
+      <div>
+        <Button variant="primary" onClick={() => void handleSave()} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
     </div>
   )
 }
@@ -182,36 +201,122 @@ function ProfileSection({ setToast }: { setToast: (msg: string) => void }) {
 }
 
 
-function IntegrationsSection() {
+function IntegrationsSection({ setToast }: { setToast: (msg: string) => void }) {
+  const [vals, setVals] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    getSettings()
+      .then((rows: SettingRead[]) => {
+        const map: Record<string, string> = {}
+        for (const r of rows) {
+          // Never pre-populate password fields
+          if (r.key === 'off_password' || r.key === 'mealie_api_key') continue
+          if (r.value !== null) map[r.key] = r.value
+        }
+        setVals(map)
+      })
+      .catch(() => {/* silently ignore load errors */})
+  }, [])
+
+  function field(key: string) {
+    return {
+      value: vals[key] ?? '',
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+        setVals(prev => ({ ...prev, [key]: e.target.value })),
+    }
+  }
+
+  async function save(keys: string[]) {
+    try {
+      await Promise.all(
+        keys.map(k => putSetting(k, vals[k]?.trim() || null))
+      )
+      setToast('Saved')
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Save failed')
+    }
+  }
+
+  const usdaConfigured = Boolean(vals['usda_api_key']?.trim())
+  const offAuthenticated = Boolean(vals['off_username']?.trim())
+  const mealieConnected = Boolean(vals['mealie_url']?.trim())
+
   return (
     <SettingsCard
       head="Integrations"
-      sub="Mealie, Open Food Facts, and MCP — toggleable."
+      sub="Configure external services — credentials are stored locally."
     >
-      <IntegrationRow
-        name="Mealie"
-        detail="Self-hosted recipe manager"
-        level="calculated"
-        status="Not connected"
-      />
-      <IntegrationRow
+      {/* USDA FoodData Central */}
+      <IntegrationGroup
+        name="USDA FoodData Central"
+        badge={
+          <ConfidenceBadge level={usdaConfigured ? 'measured' : 'estimated'}>
+            {usdaConfigured ? 'configured' : 'demo key'}
+          </ConfidenceBadge>
+        }
+        helper="Free key at api.nal.usda.gov — demo key is rate-limited to ~3 req/min"
+        onSave={() => save(['usda_api_key'])}
+      >
+        <SettingsRow label="API key">
+          <input type="text" placeholder="DEMO_KEY" style={inputStyle} {...field('usda_api_key')} />
+        </SettingsRow>
+      </IntegrationGroup>
+
+      {/* Open Food Facts */}
+      <IntegrationGroup
         name="Open Food Facts"
-        detail="Barcode lookup, open database"
-        level="calculated"
-        status="Not connected"
-      />
-      <IntegrationRow
-        name="MCP server"
-        detail="Model Context Protocol bridge"
-        level="calculated"
-        status="Not connected"
-      />
-      <IntegrationRow
-        name="Home Assistant"
-        detail="Smart home integration"
-        level="calculated"
-        status="Not connected"
-      />
+        badge={
+          <ConfidenceBadge level={offAuthenticated ? 'measured' : 'calculated'}>
+            {offAuthenticated ? 'authenticated' : 'anonymous'}
+          </ConfidenceBadge>
+        }
+        helper="Optional — anonymous contributions work without an account"
+        onSave={() => save(['off_username', 'off_password'])}
+      >
+        <SettingsRow label="Username">
+          <input type="text" placeholder="username" style={inputStyle} {...field('off_username')} />
+        </SettingsRow>
+        <SettingsRow label="Password">
+          <input
+            type="password"
+            placeholder="••••••••"
+            style={inputStyle}
+            value={vals['off_password'] ?? ''}
+            onChange={e => setVals(prev => ({ ...prev, off_password: e.target.value }))}
+          />
+        </SettingsRow>
+      </IntegrationGroup>
+
+      {/* Mealie */}
+      <IntegrationGroup
+        name="Mealie"
+        badge={
+          <ConfidenceBadge level={mealieConnected ? 'measured' : 'calculated'}>
+            {mealieConnected ? 'connected' : 'not configured'}
+          </ConfidenceBadge>
+        }
+        helper="Your Mealie base URL, e.g. http://mealie.local"
+        onSave={() => save(['mealie_url', 'mealie_api_key'])}
+      >
+        <SettingsRow label="Instance URL">
+          <input type="text" placeholder="http://mealie.local" style={inputStyle} {...field('mealie_url')} />
+        </SettingsRow>
+        <SettingsRow label="API key">
+          <input
+            type="password"
+            placeholder="••••••••"
+            style={inputStyle}
+            value={vals['mealie_api_key'] ?? ''}
+            onChange={e => setVals(prev => ({ ...prev, mealie_api_key: e.target.value }))}
+          />
+        </SettingsRow>
+      </IntegrationGroup>
+
+      {/* MCP server */}
+      <div style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg1)' }}>MCP server</span>
+        <ConfidenceBadge level="measured">active</ConfidenceBadge>
+      </div>
     </SettingsCard>
   )
 }
@@ -351,7 +456,7 @@ export default function SettingsView() {
         <div>
           {section === 'goals'        && <GoalsSection setToast={setToast} />}
           {section === 'profile'      && <ProfileSection setToast={setToast} />}
-{section === 'integrations' && <IntegrationsSection />}
+{section === 'integrations' && <IntegrationsSection setToast={setToast} />}
           {section === 'data'         && <DataSection />}
           {section === 'about'        && <AboutSection />}
         </div>
