@@ -1,3 +1,4 @@
+from porquilo.models.app_setting import AppSetting
 from porquilo.models.body_metric import BodyMetric
 from porquilo.models.food import Food
 from porquilo.models.food_nutrient import FoodNutrient
@@ -17,6 +18,7 @@ from porquilo.models.tracked_nutrient import TrackedNutrient
 from porquilo.models.user_override import UserOverride
 
 __all__ = [
+    "AppSetting",
     "BodyMetric",
     "Food",
     "FoodNutrient",
