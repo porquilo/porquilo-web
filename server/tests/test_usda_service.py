@@ -22,14 +22,14 @@ _USDA_CHICKEN_FOOD = {
     "brandOwner": None,
     "brandName": None,
     "foodNutrients": [
-        {"nutrientNumber": "1008", "value": 165.0},   # calories_kcal
-        {"nutrientNumber": "1003", "value": 31.0},    # protein_g
-        {"nutrientNumber": "1004", "value": 3.6},     # fat_g
-        {"nutrientNumber": "1005", "value": 0.0},     # carbs_g
-        {"nutrientNumber": "1093", "value": 74.0},    # sodium_mg
-        {"nutrientNumber": "1258", "value": 1.01},    # saturated_fat_g
-        {"nutrientNumber": "1087", "value": 15.0},    # calcium_mg
-        {"nutrientNumber": "1089", "value": 1.04},    # iron_mg
+        {"nutrientId": 1008, "nutrientNumber": "208", "value": 165.0},   # calories_kcal
+        {"nutrientId": 1003, "nutrientNumber": "203", "value": 31.0},    # protein_g
+        {"nutrientId": 1004, "nutrientNumber": "204", "value": 3.6},     # fat_g
+        {"nutrientId": 1005, "nutrientNumber": "205", "value": 0.0},     # carbs_g
+        {"nutrientId": 1093, "nutrientNumber": "307", "value": 74.0},    # sodium_mg
+        {"nutrientId": 1258, "nutrientNumber": "606", "value": 1.01},    # saturated_fat_g
+        {"nutrientId": 1087, "nutrientNumber": "301", "value": 15.0},    # calcium_mg
+        {"nutrientId": 1089, "nutrientNumber": "303", "value": 1.04},    # iron_mg
     ],
 }
 

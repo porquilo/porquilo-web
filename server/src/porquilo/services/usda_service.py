@@ -119,11 +119,11 @@ def upsert_usda_food(usda_food: dict, session: Session) -> Food:
     # Parse nutrients first so source_completeness is ready before the food row is written.
     found_nutrients: list[tuple[str, float]] = []
     for n in usda_food.get("foodNutrients", []):
-        try:
-            nutrient_number = int(n.get("nutrientNumber") or 0)
-        except (ValueError, TypeError):
+        # Use nutrientId (FDC scheme e.g. 1003) not nutrientNumber (NBDB scheme e.g. 203).
+        nutrient_id_int = n.get("nutrientId")
+        if not isinstance(nutrient_id_int, int):
             continue
-        mapped_key = USDA_NUTRIENT_MAP.get(nutrient_number)
+        mapped_key = USDA_NUTRIENT_MAP.get(nutrient_id_int)
         if mapped_key is None:
             continue
         value = n.get("value")
