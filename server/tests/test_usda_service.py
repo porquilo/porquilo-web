@@ -123,6 +123,17 @@ def test_search_usda_returns_empty_on_non_200(db_session):
     assert result == []
 
 
+def test_search_usda_returns_empty_on_non_json_200(db_session):
+    """USDA occasionally returns a 200 with an empty/non-JSON body on rate-limit edges."""
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.side_effect = ValueError("Expecting value: line 1 column 1 (char 0)")
+    with patch("porquilo.services.usda_service.httpx.get", return_value=resp):
+        result = search_usda("chicken", db_session)
+
+    assert result == []
+
+
 def test_search_usda_sends_correct_data_types(db_session):
     """dataType filter includes Foundation and Branded; SR Legacy excluded."""
     with patch("porquilo.services.usda_service.httpx.get", return_value=_mock_200(_USDA_SEARCH_RESPONSE)) as mock_get:
