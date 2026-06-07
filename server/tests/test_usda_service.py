@@ -9,6 +9,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
+from porquilo.models import Food
 from porquilo.services import usda_service
 from porquilo.services.usda_service import search_usda, upsert_usda_food
 
@@ -154,8 +155,9 @@ def test_upsert_creates_food_and_nutrients(db_session):
     # Clear module-level cache so each test resolves cleanly.
     usda_service._nutrient_id_cache.clear()
 
-    food = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
-    db_session.flush()
+    with patch("porquilo.services.usda_service.try_normalize_inline"):
+        food, _ = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
 
     row = db_session.execute(
         sa.text("SELECT id, name, external_source_id FROM foods WHERE external_source_id = '171477'")
@@ -177,8 +179,9 @@ def test_upsert_writes_sync_log_on_insert(db_session):
         sa.text("SELECT id FROM food_sources WHERE key = 'usda'")
     ).scalar()
 
-    upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
-    db_session.flush()
+    with patch("porquilo.services.usda_service.try_normalize_inline"):
+        upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
 
     log_count = db_session.execute(
         sa.text("SELECT COUNT(*) FROM sync_log WHERE food_source_id = :sid AND notes = 'usda_search_cache'"),
@@ -190,8 +193,9 @@ def test_upsert_writes_sync_log_on_insert(db_session):
 def test_source_completeness_range(db_session):
     usda_service._nutrient_id_cache.clear()
 
-    food = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
-    db_session.flush()
+    with patch("porquilo.services.usda_service.try_normalize_inline"):
+        food, _ = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
 
     assert food.source_completeness is not None
     assert 0.0 <= food.source_completeness <= 1.0
@@ -216,8 +220,9 @@ def test_upsert_calories_max_wins_across_methodology_variants(db_session):
         ],
     }
 
-    food = upsert_usda_food(food_with_variants, db_session)
-    db_session.flush()
+    with patch("porquilo.services.usda_service.try_normalize_inline"):
+        food, _ = upsert_usda_food(food_with_variants, db_session)
+        db_session.flush()
 
     # Only one calories_kcal row should exist, with value 163 (the max).
     cal_nutrient_id = db_session.execute(
@@ -241,11 +246,12 @@ def test_upsert_calories_max_wins_across_methodology_variants(db_session):
 def test_upsert_updates_on_second_call(db_session):
     usda_service._nutrient_id_cache.clear()
 
-    upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
-    db_session.flush()
+    with patch("porquilo.services.usda_service.try_normalize_inline"):
+        upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
 
     modified = {**_USDA_CHICKEN_FOOD, "description": "Chicken Breast Updated"}
-    food = upsert_usda_food(modified, db_session)
+    food, is_new = upsert_usda_food(modified, db_session)
     db_session.flush()
 
     # Only one row should exist for this fdcId.
@@ -253,6 +259,7 @@ def test_upsert_updates_on_second_call(db_session):
         sa.text("SELECT COUNT(*) FROM foods WHERE external_source_id = '171477'")
     ).scalar()
     assert count == 1
+    assert is_new is False
     assert food.name == "Chicken Breast Updated"
 
 
@@ -263,8 +270,10 @@ def test_upsert_no_sync_log_on_update(db_session):
         sa.text("SELECT id FROM food_sources WHERE key = 'usda'")
     ).scalar()
 
-    upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
-    db_session.flush()
+    with patch("porquilo.services.usda_service.try_normalize_inline"):
+        upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
+
     upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
     db_session.flush()
 
@@ -278,14 +287,15 @@ def test_upsert_no_sync_log_on_update(db_session):
 def test_upsert_updates_source_fetched_at_on_second_call(db_session):
     usda_service._nutrient_id_cache.clear()
 
-    food1 = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
-    db_session.flush()
+    with patch("porquilo.services.usda_service.try_normalize_inline"):
+        food1, _ = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
     ts1 = food1.source_fetched_at
 
     import time
     time.sleep(0.01)
 
-    food2 = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+    food2, _ = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
     db_session.flush()
     ts2 = food2.source_fetched_at
 
@@ -300,7 +310,7 @@ def test_upsert_updates_source_fetched_at_on_second_call(db_session):
 def test_get_foods_calls_usda_when_cache_empty(client, db_session):
     """When local results < limit, search_usda and upsert_usda_food are both called."""
     with patch("porquilo.routers.foods.search_usda", return_value=[_USDA_CHICKEN_FOOD]) as mock_search:
-        with patch("porquilo.routers.foods.upsert_usda_food") as mock_upsert:
+        with patch("porquilo.routers.foods.upsert_usda_food", return_value=(MagicMock(), False)) as mock_upsert:
             resp = client.get("/api/foods", params={"q": "chicken"})
 
     assert resp.status_code == 200
@@ -388,3 +398,112 @@ def test_get_foods_returns_local_on_usda_failure(client, db_session):
 
     assert resp.status_code == 200
     assert any(f["name"] == "Chicken Salad" for f in resp.json())
+
+
+# ---------------------------------------------------------------------------
+# upsert_usda_food — normalization integration
+# ---------------------------------------------------------------------------
+
+
+def test_upsert_sets_pending_and_calls_try_normalize_inline_on_insert(db_session):
+    """INSERT sets display_name_status='pending' and calls try_normalize_inline with that food."""
+    usda_service._nutrient_id_cache.clear()
+
+    calls = []
+
+    def _capture(food_id, session):
+        # Record status at the moment try_normalize_inline is invoked.
+        f = session.get(Food, food_id)
+        calls.append({"id": food_id, "status": f.display_name_status if f else None})
+
+    with patch("porquilo.services.usda_service.try_normalize_inline", side_effect=_capture):
+        food, is_new = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
+
+    assert is_new is True
+    assert len(calls) == 1
+    assert calls[0]["id"] == food.id
+    assert calls[0]["status"] == "pending"
+
+
+def test_upsert_does_not_reset_display_name_on_update(db_session):
+    """Second upsert (UPDATE path) does not touch display_name or display_name_status."""
+    usda_service._nutrient_id_cache.clear()
+
+    with patch("porquilo.services.usda_service.try_normalize_inline"):
+        food, _ = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
+
+    # Force a known display_name state after first insert.
+    food.display_name = "My Display Name"
+    food.display_name_status = "done"
+    db_session.flush()
+
+    # Second upsert — UPDATE path; try_normalize_inline must NOT be called.
+    with patch("porquilo.services.usda_service.try_normalize_inline") as mock_normalize:
+        food2, is_new2 = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
+
+    assert is_new2 is False
+    mock_normalize.assert_not_called()
+    db_session.refresh(food2)
+    assert food2.display_name == "My Display Name"
+    assert food2.display_name_status == "done"
+
+
+def test_normalize_and_store_sets_display_name_when_llm_responds(db_session):
+    """normalize_and_store (called inline by try_normalize_inline) sets display_name when LLM is fast.
+
+    Tests the real DB mutation without threading to avoid savepoint leak in tests.
+    The threading/timeout wrapper is tested separately in test_name_normalization_service.py.
+    """
+    from porquilo.models import Food as _Food
+    from porquilo.services.name_normalization import normalize_and_store
+
+    usda_source_id = db_session.execute(
+        sa.text("SELECT id FROM food_sources WHERE key = 'usda'")
+    ).scalar()
+
+    import uuid as _uuid
+    food = _Food(
+        name="Chicken, broilers or fryers, breast",
+        food_source_id=_uuid.UUID(str(usda_source_id)),
+        display_name_status="pending",
+    )
+    db_session.add(food)
+    db_session.flush()
+
+    with patch("porquilo.services.name_normalization.normalize_food_name", return_value="Chicken Breast"), \
+         patch("porquilo.services.name_normalization.is_llm_configured", return_value=True):
+        normalize_and_store(food.id, db_session)
+
+    db_session.refresh(food)
+    assert food.display_name == "Chicken Breast"
+    assert food.display_name_status == "done"
+
+
+def test_upsert_inline_normalize_timeout_food_still_returned(db_session):
+    """When try_normalize_inline's thread times out, upsert still returns the food.
+
+    Mocks the ThreadPoolExecutor so no real thread (and no session commit) runs.
+    """
+    import concurrent.futures
+
+    usda_service._nutrient_id_cache.clear()
+
+    mock_future = MagicMock()
+    mock_future.result.side_effect = concurrent.futures.TimeoutError()
+
+    with patch("porquilo.services.name_normalization.concurrent.futures.ThreadPoolExecutor") as mock_cls:
+        mock_executor = MagicMock()
+        mock_executor.__enter__ = MagicMock(return_value=mock_executor)
+        mock_executor.__exit__ = MagicMock(return_value=False)
+        mock_executor.submit.return_value = mock_future
+        mock_cls.return_value = mock_executor
+
+        food, is_new = upsert_usda_food(_USDA_CHICKEN_FOOD, db_session)
+        db_session.flush()
+
+    assert is_new is True
+    assert food is not None
+    assert food.id is not None

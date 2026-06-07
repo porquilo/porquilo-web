@@ -5,12 +5,13 @@ from typing import Optional
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, model_validator
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from porquilo.core.database import get_session
+from porquilo.core.database import engine, get_session
+from porquilo.services.name_normalization import normalize_and_store
 from porquilo.models import (
     Food,
     FoodNutrient,
@@ -142,12 +143,26 @@ def _food_out(food: Food, source_key: str, session: Session) -> FoodOut:
 
 
 # ---------------------------------------------------------------------------
+# Background task helpers
+# ---------------------------------------------------------------------------
+
+
+def _bg_normalize(food_id: UUID) -> None:
+    """Run normalization with its own session — never reuse the request session."""
+    from sqlmodel import Session as _Session  # local import avoids circular at module level
+
+    with _Session(engine) as bg_session:
+        normalize_and_store(food_id, bg_session)
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
 
 @router.get("", response_model=list[FoodRead])
 def search_foods(
+    background_tasks: BackgroundTasks,
     q: Optional[str] = None,
     source: Optional[str] = None,
     limit: int = Query(default=20, ge=1, le=50),
@@ -192,10 +207,15 @@ def search_foods(
     if q and len(q) >= 2 and len(food_rows) < limit:
         usda_results = search_usda(q, session, page_size=limit - len(food_rows))
         if usda_results:
+            new_food_ids: list[UUID] = []
             for usda_food in usda_results:
-                upsert_usda_food(usda_food, session)
+                food, is_new = upsert_usda_food(usda_food, session)
+                if is_new:
+                    new_food_ids.append(food.id)
             session.commit()
             food_rows = session.execute(stmt).all()
+            for food_id in new_food_ids:
+                background_tasks.add_task(_bg_normalize, food_id)
 
     if not food_rows:
         return []
