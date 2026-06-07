@@ -72,6 +72,7 @@ engine_008 = _make_engine_fixture("008")
 engine_009 = _make_engine_fixture("009")
 engine_010 = _make_engine_fixture("010")
 engine_011 = _make_engine_fixture("011")
+engine_012 = _make_engine_fixture("012")
 
 
 @pytest.fixture(params=["sqlite", "pg"])
