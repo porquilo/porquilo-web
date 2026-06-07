@@ -8,6 +8,7 @@
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
@@ -448,3 +449,74 @@ def test_atomic_rollback_on_unknown_nutrient(client):
     }
     resp = client.post("/api/foods", json=payload)
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Normalization integration — GET /api/foods
+# ---------------------------------------------------------------------------
+
+_USDA_CHICKEN_FOOD = {
+    "fdcId": 171477,
+    "description": "Chicken, broilers or fryers, breast, meat only, cooked, roasted",
+    "brandOwner": None,
+    "brandName": None,
+    "foodNutrients": [
+        {"nutrientId": 1008, "nutrientNumber": "208", "value": 165.0},
+        {"nutrientId": 1003, "nutrientNumber": "203", "value": 31.0},
+        {"nutrientId": 1004, "nutrientNumber": "204", "value": 3.6},
+        {"nutrientId": 1005, "nutrientNumber": "205", "value": 0.0},
+        {"nutrientId": 1093, "nutrientNumber": "307", "value": 74.0},
+        {"nutrientId": 1258, "nutrientNumber": "606", "value": 1.01},
+        {"nutrientId": 1087, "nutrientNumber": "301", "value": 15.0},
+        {"nutrientId": 1089, "nutrientNumber": "303", "value": 1.04},
+    ],
+}
+
+
+def test_get_foods_response_includes_display_name(client, db_session):
+    """GET /api/foods includes display_name in every result (null or string)."""
+    src_id = _food_source_id(db_session, "custom")
+    nut_id = _nutrient_id(db_session, "calories_kcal")
+    fid = uuid.uuid4().hex
+    db_session.execute(
+        sa.text(
+            "INSERT INTO foods (id, name, food_source_id, default_unit, created_at, updated_at) "
+            "VALUES (:id, 'Display Name Food', :src, 'g', :ts, :ts)"
+        ),
+        {"id": fid, "src": src_id, "ts": _NOW},
+    )
+    db_session.execute(
+        sa.text(
+            "INSERT INTO food_nutrients (id, food_id, nutrient_id, value_per_100) "
+            "VALUES (:id, :fid, :nid, 100)"
+        ),
+        {"id": uuid.uuid4().hex, "fid": fid, "nid": nut_id},
+    )
+
+    resp = client.get("/api/foods", params={"q": "Display Name Food"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 1
+    assert "display_name" in data[0]
+
+
+def test_get_foods_enqueues_background_task_for_new_usda_food(client, db_session, monkeypatch):
+    """foods.py wires new USDA food IDs into background_tasks after upsert."""
+    import uuid as _uuid
+    from unittest.mock import MagicMock
+    from porquilo.routers import foods as foods_module
+
+    calls = []
+    monkeypatch.setattr(foods_module, "_bg_normalize", lambda food_id: calls.append(food_id))
+
+    fake_food = MagicMock()
+    fake_food.id = _uuid.uuid4()
+
+    # Mock upsert_usda_food so no real DB write (and no session.commit) occurs.
+    with patch("porquilo.routers.foods.search_usda", return_value=[_USDA_CHICKEN_FOOD]), \
+         patch("porquilo.routers.foods.upsert_usda_food", return_value=(fake_food, True)):
+        resp = client.get("/api/foods", params={"q": "chicken"})
+
+    assert resp.status_code == 200
+    # TestClient runs background tasks synchronously before returning the response.
+    assert calls == [fake_food.id]
