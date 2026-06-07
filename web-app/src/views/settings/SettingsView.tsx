@@ -5,6 +5,9 @@ import { ConfidenceBadge } from '../../components/ConfidenceBadge'
 import { useToast } from '../../contexts/ToastContext'
 import { getSettings, putSetting } from '../../api/settings'
 import type { SettingRead } from '../../api/settings'
+import { startOffSync, getOffSyncStatus } from '../../api/sync'
+import type { OffSyncStatus } from '../../api/sync'
+import { ApiError } from '../../api/client'
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -321,13 +324,95 @@ function IntegrationsSection({ setToast }: { setToast: (msg: string) => void }) 
   )
 }
 
-function DataSection() {
+function Spinner() {
   return (
-    <SettingsCard
-      head="Data"
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Button variant="primary" disabled>Download SQLite snapshot</Button>
+    <>
+      <style>{`@keyframes pq-spin{to{transform:rotate(360deg)}}`}</style>
+      <span style={{
+        display: 'inline-block',
+        width: 12,
+        height: 12,
+        border: '2px solid currentColor',
+        borderTopColor: 'transparent',
+        borderRadius: '50%',
+        animation: 'pq-spin 0.7s linear infinite',
+        flexShrink: 0,
+      }} />
+    </>
+  )
+}
+
+function DataSection({ setToast }: { setToast: (msg: string) => void }) {
+  const [syncStatus, setSyncStatus] = useState<OffSyncStatus | null>(null)
+
+  useEffect(() => {
+    void getOffSyncStatus().then(setSyncStatus).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (syncStatus?.status !== 'queued' && syncStatus?.status !== 'running') return
+    const id = setInterval(() => {
+      void getOffSyncStatus().then(setSyncStatus).catch(() => {})
+    }, 10_000)
+    return () => clearInterval(id)
+  }, [syncStatus?.status])
+
+  const importing = syncStatus?.status === 'queued' || syncStatus?.status === 'running'
+
+  async function handleImport() {
+    try {
+      await startOffSync()
+      setSyncStatus(s => ({ status: 'queued', last_synced_at: s?.last_synced_at ?? null, error: null }))
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setToast('Import already running')
+      }
+    }
+  }
+
+  function statusLine() {
+    const st = syncStatus?.status ?? null
+    if (st === null) {
+      return 'No food database downloaded — text search uses USDA only'
+    }
+    if (st === 'queued' || st === 'running') {
+      return 'Importing Open Food Facts… this may take 15–90 minutes'
+    }
+    if (st === 'succeeded' && syncStatus?.last_synced_at) {
+      const d = new Date(syncStatus.last_synced_at)
+      const formatted = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      return `Last imported ${formatted}`
+    }
+    if (st === 'failed') {
+      return null // rendered separately with amber colour
+    }
+    return null
+  }
+
+  const line = statusLine()
+  const failed = syncStatus?.status === 'failed'
+
+  return (
+    <SettingsCard head="Data">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <Button
+          variant="primary"
+          disabled={importing}
+          leftIcon={importing ? <Spinner /> : undefined}
+          onClick={() => void handleImport()}
+        >
+          Download food database
+        </Button>
+        {line && (
+          <div style={{ fontSize: 12, color: 'var(--fg3)', paddingLeft: 2 }}>{line}</div>
+        )}
+        {failed && (
+          <div style={{ fontSize: 12, color: 'var(--amber, #f59e0b)', paddingLeft: 2 }}>
+            Last import failed — {syncStatus?.error ?? 'unknown error'}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
         <Button variant="secondary" disabled>Restore from snapshot</Button>
         <Button variant="secondary" disabled>Import from MyFitnessPal CSV</Button>
         <Button variant="secondary" disabled>Import from Cronometer CSV</Button>
@@ -457,7 +542,7 @@ export default function SettingsView() {
           {section === 'goals'        && <GoalsSection setToast={setToast} />}
           {section === 'profile'      && <ProfileSection setToast={setToast} />}
 {section === 'integrations' && <IntegrationsSection setToast={setToast} />}
-          {section === 'data'         && <DataSection />}
+          {section === 'data'         && <DataSection setToast={setToast} />}
           {section === 'about'        && <AboutSection />}
         </div>
       </div>
