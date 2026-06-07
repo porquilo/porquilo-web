@@ -10,6 +10,7 @@ import httpx
 from sqlmodel import Session, select
 
 from porquilo.models import Food, FoodNutrient, FoodSource, NutrientDefinition, SyncLog
+from porquilo.services.name_normalization import try_normalize_inline
 from porquilo.services.settings_service import get_setting
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,7 @@ def upsert_usda_food(usda_food: dict, session: Session) -> Food:
             updated_at=now,
             source_fetched_at=now,
             source_completeness=source_completeness,
+            display_name_status="pending",
         )
         session.add(food)
         session.flush()
@@ -187,5 +189,6 @@ def upsert_usda_food(usda_food: dict, session: Session) -> Food:
                 notes="usda_search_cache",
             )
         )
+        try_normalize_inline(food.id, session)
 
-    return food
+    return food, is_insert
