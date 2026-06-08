@@ -13,6 +13,7 @@ EXPECTED_COLUMNS = {
     "food_sources": {
         "id", "key", "display_name", "is_active",
         "last_synced_at", "sync_status", "sync_error", "created_at", "updated_at",
+        "sync_pid", "sync_progress", "sync_total",
     },
     "foods": {
         "id", "name", "brand", "barcode",
@@ -48,8 +49,8 @@ EXPECTED_COLUMNS = {
 }
 
 
-def test_model_columns_match_db(engine_012):
-    inspector = sa.inspect(engine_012)
+def test_model_columns_match_db(engine_013):
+    inspector = sa.inspect(engine_013)
 
     for table_name, expected in EXPECTED_COLUMNS.items():
         db_cols = {col["name"] for col in inspector.get_columns(table_name)}
