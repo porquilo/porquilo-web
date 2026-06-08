@@ -107,7 +107,7 @@ def test_partial_name_match(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "apple"})
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["items"]
     assert len(data) == 1
     assert data[0]["name"] == "Apple Juice"
 
@@ -118,7 +118,7 @@ def test_case_insensitive_name(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "BROCCOLI"})
     assert resp.status_code == 200
-    assert any(f["name"] == "Broccoli Florets" for f in resp.json())
+    assert any(f["name"] == "Broccoli Florets" for f in resp.json()["items"])
 
 
 def test_brand_match(client, db_session):
@@ -127,7 +127,7 @@ def test_brand_match(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "tropicana"})
     assert resp.status_code == 200
-    assert any(f["name"] == "Orange Juice" for f in resp.json())
+    assert any(f["name"] == "Orange Juice" for f in resp.json()["items"])
 
 
 def test_source_filter_matched_against_key(client, db_session):
@@ -140,7 +140,7 @@ def test_source_filter_matched_against_key(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "salad", "source": "custom"})
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["items"]
     assert len(data) == 1
     assert data[0]["source"] == "custom"
     assert data[0]["name"] == "Custom Salad"
@@ -152,7 +152,7 @@ def test_source_filter_returns_key_string_not_uuid(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "chicken", "source": "usda"})
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["items"]
     assert len(data) == 1
     # source must be the string key "usda", not a UUID
     assert data[0]["source"] == "usda"
@@ -169,7 +169,7 @@ def test_short_q_returns_browse_mode(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "a"})
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    assert "items" in resp.json()
 
 
 def test_missing_q_returns_all_foods(client, db_session):
@@ -178,8 +178,8 @@ def test_missing_q_returns_all_foods(client, db_session):
 
     resp = client.get("/api/foods")
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
-    assert any(f["name"] == "Zucchini" for f in resp.json())
+    assert "items" in resp.json()
+    assert any(f["name"] == "Zucchini" for f in resp.json()["items"])
 
 
 def test_browse_alphabetical_order(client, db_session):
@@ -189,7 +189,7 @@ def test_browse_alphabetical_order(client, db_session):
 
     resp = client.get("/api/foods")
     assert resp.status_code == 200
-    names = [f["name"] for f in resp.json()]
+    names = [f["name"] for f in resp.json()["items"]]
     assert names.index("Apple") < names.index("Mango") < names.index("Zucchini")
 
 
@@ -201,7 +201,7 @@ def test_browse_source_filter(client, db_session):
 
     resp = client.get("/api/foods", params={"source": "custom"})
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["items"]
     assert all(f["source"] == "custom" for f in data)
     assert any(f["name"] == "Custom Oats" for f in data)
     assert not any(f["name"] == "USDA Oats" for f in data)
@@ -212,8 +212,8 @@ def test_offset_pagination(client, db_session):
         fid = _insert_food(db_session, name=f"Page Food {i:02d}")
         _add_nutrient(db_session, fid)
 
-    first = client.get("/api/foods", params={"limit": 2, "offset": 0}).json()
-    second = client.get("/api/foods", params={"limit": 2, "offset": 2}).json()
+    first = client.get("/api/foods", params={"limit": 2, "offset": 0}).json()["items"]
+    second = client.get("/api/foods", params={"limit": 2, "offset": 2}).json()["items"]
 
     assert len(first) == 2
     assert len(second) == 2
@@ -230,7 +230,7 @@ def test_foods_without_nutrients_excluded(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "banana"})
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["items"]
     assert len(data) == 1
     assert data[0]["name"] == "Banana"
 
@@ -242,7 +242,7 @@ def test_limit_respected(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "lime", "limit": 3})
     assert resp.status_code == 200
-    assert len(resp.json()) == 3
+    assert len(resp.json()["items"]) == 3
 
 
 def test_limit_default_20(client, db_session):
@@ -252,11 +252,11 @@ def test_limit_default_20(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "grape"})
     assert resp.status_code == 200
-    assert len(resp.json()) == 20
+    assert len(resp.json()["items"]) == 20
 
 
-def test_limit_max_50_enforced(client):
-    resp = client.get("/api/foods", params={"q": "test", "limit": 51})
+def test_limit_max_100_enforced(client):
+    resp = client.get("/api/foods", params={"q": "test", "limit": 101})
     assert resp.status_code == 422
 
 
@@ -268,7 +268,9 @@ def test_response_model_shape(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "brown rice"})
     assert resp.status_code == 200
-    data = resp.json()
+    body = resp.json()
+    assert "items" in body and "total" in body
+    data = body["items"]
     assert len(data) == 1
 
     food = data[0]
@@ -297,7 +299,7 @@ def test_ordering_exact_startswith_contains(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "mango"})
     assert resp.status_code == 200
-    names = [f["name"] for f in resp.json()]
+    names = [f["name"] for f in resp.json()["items"]]
     assert names.index("mango") < names.index("mango smoothie")
     assert names.index("mango smoothie") < names.index("tropical mango blend")
 
@@ -305,7 +307,166 @@ def test_ordering_exact_startswith_contains(client, db_session):
 def test_no_results_returns_empty_list(client, db_session):
     resp = client.get("/api/foods", params={"q": "zzz_no_such_food"})
     assert resp.status_code == 200
-    assert resp.json() == []
+    assert resp.json() == {"items": [], "total": 0}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/foods — envelope, total count, sorting, limit cap
+# ---------------------------------------------------------------------------
+
+
+def test_response_shape_is_envelope(client, db_session):
+    fid = _insert_food(db_session, name="Envelope Food")
+    _add_nutrient(db_session, fid)
+
+    resp = client.get("/api/foods")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body.keys()) == {"items", "total"}
+    assert isinstance(body["items"], list)
+    assert isinstance(body["total"], int)
+
+
+def test_total_reflects_full_count(client, db_session):
+    for i in range(60):
+        fid = _insert_food(db_session, name=f"CountFood {i:02d}")
+        _add_nutrient(db_session, fid)
+
+    resp = client.get("/api/foods", params={"q": "CountFood", "limit": 25, "offset": 25})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 60
+    assert len(body["items"]) == 25
+
+
+def test_total_with_source_filter(client, db_session):
+    for i in range(5):
+        fid = _insert_food(db_session, name=f"SrcGrain{i}Custom", source_key="custom")
+        _add_nutrient(db_session, fid)
+    for i in range(3):
+        fid = _insert_food(db_session, name=f"SrcGrain{i}Usda", source_key="usda")
+        _add_nutrient(db_session, fid)
+
+    resp = client.get("/api/foods", params={"q": "SrcGrain", "source": "custom"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 5
+    assert all(f["source"] == "custom" for f in body["items"])
+
+
+def test_total_with_q_filter(client, db_session):
+    for i in range(4):
+        fid = _insert_food(db_session, name=f"Kale Chip {i}")
+        _add_nutrient(db_session, fid)
+    fid = _insert_food(db_session, name="Spinach")
+    _add_nutrient(db_session, fid)
+
+    resp = client.get("/api/foods", params={"q": "kale", "limit": 2})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 4
+    assert len(body["items"]) == 2
+
+
+def test_sort_by_name_desc(client, db_session):
+    for name in ("Apple", "Banana", "Cherry"):
+        fid = _insert_food(db_session, name=name)
+        _add_nutrient(db_session, fid)
+
+    resp = client.get("/api/foods", params={"sort_by": "name", "sort_dir": "desc"})
+    assert resp.status_code == 200
+    names = [f["name"] for f in resp.json()["items"]]
+    cherry_i = names.index("Cherry")
+    banana_i = names.index("Banana")
+    apple_i = names.index("Apple")
+    assert cherry_i < banana_i < apple_i
+
+
+def test_sort_by_source(client, db_session):
+    fid_u = _insert_food(db_session, name="USDA Berry", source_key="usda")
+    _add_nutrient(db_session, fid_u)
+    fid_c = _insert_food(db_session, name="Custom Berry", source_key="custom")
+    _add_nutrient(db_session, fid_c)
+
+    resp = client.get("/api/foods", params={"sort_by": "source", "sort_dir": "asc"})
+    assert resp.status_code == 200
+    sources = [f["source"] for f in resp.json()["items"]]
+    # "custom" < "usda" alphabetically
+    assert sources.index("custom") < sources.index("usda")
+
+
+def test_sort_by_calories_asc(client, db_session):
+    fid_high = _insert_food(db_session, name="High Cal")
+    _add_nutrient(db_session, fid_high, nutrient_key="calories_kcal", value=400.0)
+
+    fid_low = _insert_food(db_session, name="Low Cal")
+    _add_nutrient(db_session, fid_low, nutrient_key="calories_kcal", value=50.0)
+
+    fid_none = _insert_food(db_session, name="No Cal")
+    _add_nutrient(db_session, fid_none, nutrient_key="protein_g", value=10.0)
+
+    resp = client.get("/api/foods", params={"sort_by": "calories", "sort_dir": "asc"})
+    assert resp.status_code == 200
+    names = [f["name"] for f in resp.json()["items"]]
+    assert names.index("Low Cal") < names.index("High Cal")
+    assert names.index("No Cal") == len(names) - 1
+
+
+def test_sort_by_calories_desc_nulls_last(client, db_session):
+    fid_high = _insert_food(db_session, name="High Cal 2")
+    _add_nutrient(db_session, fid_high, nutrient_key="calories_kcal", value=400.0)
+
+    fid_low = _insert_food(db_session, name="Low Cal 2")
+    _add_nutrient(db_session, fid_low, nutrient_key="calories_kcal", value=50.0)
+
+    fid_none = _insert_food(db_session, name="No Cal 2")
+    _add_nutrient(db_session, fid_none, nutrient_key="protein_g", value=10.0)
+
+    resp = client.get("/api/foods", params={"sort_by": "calories", "sort_dir": "desc"})
+    assert resp.status_code == 200
+    names = [f["name"] for f in resp.json()["items"]]
+    assert names.index("High Cal 2") < names.index("Low Cal 2")
+    assert names.index("No Cal 2") == len(names) - 1
+
+
+def test_sort_by_invalid_returns_422(client):
+    resp = client.get("/api/foods", params={"sort_by": "nonsense"})
+    assert resp.status_code == 422
+
+
+def test_sort_dir_invalid_returns_422(client):
+    resp = client.get("/api/foods", params={"sort_dir": "sideways"})
+    assert resp.status_code == 422
+
+
+def test_limit_100_accepted(client, db_session):
+    fid = _insert_food(db_session, name="Hundred Food")
+    _add_nutrient(db_session, fid)
+
+    resp = client.get("/api/foods", params={"limit": 100})
+    assert resp.status_code == 200
+
+
+def test_limit_101_rejected(client):
+    resp = client.get("/api/foods", params={"limit": 101})
+    assert resp.status_code == 422
+
+
+def test_pagination_correct_60_foods(client, db_session):
+    for i in range(60):
+        fid = _insert_food(db_session, name=f"PaginateFood{i:02d}")
+        _add_nutrient(db_session, fid)
+
+    resp = client.get("/api/foods", params={"q": "PaginateFood", "limit": 25, "offset": 25})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 60
+    assert len(body["items"]) == 25
+
+    all_resp = client.get("/api/foods", params={"q": "PaginateFood", "limit": 100, "offset": 0})
+    all_names = [f["name"] for f in all_resp.json()["items"]]
+    page_names = [f["name"] for f in body["items"]]
+    assert page_names == all_names[25:50]
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +656,7 @@ def test_get_foods_response_includes_display_name(client, db_session):
 
     resp = client.get("/api/foods", params={"q": "Display Name Food"})
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["items"]
     assert len(data) >= 1
     assert "display_name" in data[0]
 
