@@ -152,6 +152,7 @@ def import_off_dataset(session: Session) -> int:
             ignore_errors = true
         )
         WHERE product_name IS NOT NULL AND product_name != ''
+          AND "energy-kcal_100g" IS NOT NULL
     """
     query = f"""
         SELECT code, product_name, brands, {nutrient_cols}
@@ -163,6 +164,7 @@ def import_off_dataset(session: Session) -> int:
             ignore_errors = true
         )
         WHERE product_name IS NOT NULL AND product_name != ''
+          AND "energy-kcal_100g" IS NOT NULL
     """
 
     with duckdb.connect() as count_con:
