@@ -349,7 +349,7 @@ def test_get_foods_no_usda_on_cache_hit(client, db_session):
         resp = client.get("/api/foods", params={"q": "chicken", "limit": 20})
 
     assert resp.status_code == 200
-    assert len(resp.json()) == 20
+    assert len(resp.json()["items"]) == 20
     mock_search.assert_not_called()
 
 
@@ -397,7 +397,7 @@ def test_get_foods_returns_local_on_usda_failure(client, db_session):
         resp = client.get("/api/foods", params={"q": "chicken"})
 
     assert resp.status_code == 200
-    assert any(f["name"] == "Chicken Salad" for f in resp.json())
+    assert any(f["name"] == "Chicken Salad" for f in resp.json()["items"])
 
 
 # ---------------------------------------------------------------------------
