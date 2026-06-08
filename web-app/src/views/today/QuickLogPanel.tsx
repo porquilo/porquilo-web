@@ -40,10 +40,10 @@ interface ListViewProps {
 }
 
 function ListView({ query, onQueryChange, onSelectFood, onClose, searchInputRef }: ListViewProps) {
-  const { data: results, isFetching } = useFoods(query)
+  const { data: results, isFetching } = useFoods(query, { page: 1, pageSize: 25, sortBy: 'name', sortDir: 'asc' })
 
   const showResults = query.length >= 2
-  const isEmpty = showResults && !isFetching && (results?.length ?? 0) === 0
+  const isEmpty = showResults && !isFetching && (results?.items?.length ?? 0) === 0
 
   return (
     <>
@@ -138,7 +138,7 @@ function ListView({ query, onQueryChange, onSelectFood, onClose, searchInputRef 
             Nothing in your library matches.
           </div>
         ) : (
-          (results ?? []).map(food => {
+          (results?.items ?? []).map(food => {
             const kcal = food.nutrients['calories_kcal'] ?? 0
             const prot = food.nutrients['protein_g'] ?? 0
             const carbs = food.nutrients['carbs_g'] ?? 0

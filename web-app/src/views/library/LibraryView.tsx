@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useFoods, useAllFoods } from '../../hooks/useFoods'
+import { useQueryClient } from '@tanstack/react-query'
+import { useFoods, useAllFoods, FOODS_PAGE_SIZES } from '../../hooks/useFoods'
+import type { FoodPageSize } from '../../hooks/useFoods'
 import { useToast } from '../../contexts/ToastContext'
 import { Button } from '../../components/Button'
 import { ConfidenceBadge } from '../../components/ConfidenceBadge'
@@ -19,6 +21,23 @@ const RECIPES = [
   { id: '4', name: 'Roast veg tray',         portions: 3, totalG:  720, kcalPer100: 91,  source: 'Custom', made: '5 days ago' },
   { id: '5', name: 'Chickpea salad bowl',    portions: 2, totalG:  580, kcalPer100: 159, source: 'Mealie', made: 'last Friday' },
 ]
+
+// ── Column definitions ─────────────────────────────────────────────────────
+
+const FOOD_COLUMNS = [
+  { label: 'Name',      key: 'name' },
+  { label: 'Source',    key: 'source' },
+  { label: 'kcal/100g', key: 'calories' },
+  { label: 'Protein',   key: 'protein' },
+  { label: 'Fat',       key: 'fat' },
+  { label: 'Carbs',     key: 'carbs' },
+] as const
+
+const SOURCE_MAP: Record<string, string> = {
+  Custom: 'custom',
+  USDA: 'usda',
+  'Open Food Facts': 'open_food_facts',
+}
 
 // ── FoodRow ────────────────────────────────────────────────────────────────
 
@@ -129,26 +148,50 @@ function RecipeRow({ r }: { r: RecipeRowData }) {
 // ── LibraryView ────────────────────────────────────────────────────────────
 
 export default function LibraryView() {
-  const [tab, setTab] = useState<'foods' | 'recipes'>('foods')
-  const [filter, setFilter] = useState('All')
-  const [q, setQ] = useState('')
+  const queryClient = useQueryClient()
+
+  const [tab, setTab]         = useState<'foods' | 'recipes'>('foods')
+  const [filter, setFilter]   = useState('All')
+  const [q, setQ]             = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [extraFoods, setExtraFoods] = useState<FoodResult[]>([])
 
-  const { data: allFoodsData } = useAllFoods()
-  const { data: searchData } = useFoods(q)
+  // Pagination + sorting state (foods tab only)
+  const [page, setPage]         = useState(1)
+  const [pageSize, setPageSize] = useState<FoodPageSize>(25)
+  const [sortBy, setSortBy]     = useState('name')
+  const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('asc')
 
+  // Debounced search query — keeps input responsive, debounces API calls
+  const [debouncedQ, setDebouncedQ] = useState(q)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 350)
+    return () => clearTimeout(t)
+  }, [q])
+
+  // Reset filter when switching tabs
   useEffect(() => { setFilter('All') }, [tab])
 
-  const rawFoods: FoodResult[] = q.length >= 2 ? (searchData ?? []) : (allFoodsData ?? [])
+  // Reset to page 1 on any query/filter/sort/size change
+  useEffect(() => { setPage(1) }, [debouncedQ, filter, sortBy, sortDir, pageSize])
 
-  // Prepend any foods just created this session (may not be in cache yet)
-  const allFoods = [
-    ...extraFoods.filter(ef => !rawFoods.some(f => f.id === ef.id)),
-    ...rawFoods,
-  ]
+  const activeSource = filter === 'All' ? undefined : SOURCE_MAP[filter]
 
-  const displayFoods = allFoods.filter(f => matchesFilter(f.source, filter))
+  const allFoodsQuery = useAllFoods({ page, pageSize, sortBy, sortDir, source: activeSource })
+  const searchQuery   = useFoods(debouncedQ, { page, pageSize, sortBy, sortDir, source: activeSource })
+  const activeQuery   = debouncedQ.trim().length >= 2 ? searchQuery : allFoodsQuery
+
+  const foods      = activeQuery.data?.items ?? []
+  const total      = activeQuery.data?.total ?? 0
+  const totalPages = Math.ceil(total / pageSize)
+
+  const handleSort = (key: string) => {
+    if (key === sortBy) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(key)
+      setSortDir('asc')
+    }
+  }
 
   const foodFilters = ['All', 'Custom', 'USDA', 'Open Food Facts']
   const recipeFilters = ['All', 'Custom', 'Mealie']
@@ -227,7 +270,7 @@ export default function LibraryView() {
             }}
           >
             {t === 'foods'
-              ? `Foods · ${allFoods.length}`
+              ? (total > 0 ? `Foods · ${total.toLocaleString()}` : 'Foods')
               : `Recipes · ${RECIPES.length}`}
           </button>
         ))}
@@ -279,7 +322,7 @@ export default function LibraryView() {
             </button>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {activeFilters.map(f => (
             <button
               key={f}
@@ -299,6 +342,31 @@ export default function LibraryView() {
               {f}
             </button>
           ))}
+          {tab === 'foods' && (
+            <select
+              value={pageSize}
+              onChange={e => {
+                setPageSize(Number(e.target.value) as FoodPageSize)
+                setPage(1)
+              }}
+              style={{
+                background: 'var(--bg-elevated)',
+                color: 'var(--fg2)',
+                border: '1px solid var(--border)',
+                borderRadius: 999,
+                padding: '6px 12px',
+                fontFamily: 'var(--font-body)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              {FOODS_PAGE_SIZES.map(n => (
+                <option key={n} value={n}>Show: {n}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -312,14 +380,53 @@ export default function LibraryView() {
       }}>
         {tab === 'foods' ? (
           <>
-            <TableHeaders
-              cols={['Name', 'Source', 'kcal/100g', 'Protein', 'Fat', 'Carbs']}
-              gridTemplateColumns={FOODS_GRID}
-            />
-            {displayFoods.map(food => (
-              <FoodRow key={food.id} food={food} />
-            ))}
-            {displayFoods.length === 0 && (
+            {/* Sortable column headers */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: FOODS_GRID,
+              gap: 12,
+              padding: '10px 18px',
+              background: 'var(--bg-sunken)',
+              borderBottom: '1px solid var(--border-soft)',
+            }}>
+              {FOOD_COLUMNS.map(col => {
+                const isActive = col.key === sortBy
+                const indicator = isActive
+                  ? (sortDir === 'asc' ? '↑' : '↓')
+                  : '↕'
+                return (
+                  <button
+                    key={col.key}
+                    onClick={() => handleSort(col.key)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      background: 'transparent',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 10,
+                      color: 'var(--fg3)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      fontWeight: 600,
+                      textAlign: 'left',
+                    }}
+                  >
+                    {col.label}
+                    <span style={{ opacity: isActive ? 1 : 0.4 }}>{indicator}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ opacity: activeQuery.isFetching ? 0.5 : 1, transition: 'opacity 0.15s' }}>
+              {foods.map(food => (
+                <FoodRow key={food.id} food={food} />
+              ))}
+            </div>
+            {total === 0 && !activeQuery.isFetching && (
               <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--fg3)', fontSize: 13 }}>
                 No foods found
               </div>
@@ -343,10 +450,65 @@ export default function LibraryView() {
         )}
       </div>
 
+      {/* Pagination controls (foods tab only) */}
+      {tab === 'foods' && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 12,
+          fontSize: 13,
+          color: 'var(--fg3)',
+          flexShrink: 0,
+        }}>
+          <span>
+            {total === 0
+              ? 'No foods found'
+              : `Showing ${Math.max(1, (page - 1) * pageSize + 1)}–${Math.min(page * pageSize, total)} of ${total.toLocaleString()} foods`}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={() => setPage(p => p - 1)}
+              disabled={page === 1}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                color: page === 1 ? 'var(--fg4)' : 'var(--fg2)',
+                cursor: page === 1 ? 'default' : 'pointer',
+              }}
+            >
+              ← Previous
+            </button>
+            <span>Page {page} of {totalPages || 1}</span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= totalPages || totalPages === 0}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                color: (page >= totalPages || totalPages === 0) ? 'var(--fg4)' : 'var(--fg2)',
+                cursor: (page >= totalPages || totalPages === 0) ? 'default' : 'pointer',
+              }}
+            >
+              Next →
+            </button>
+          </div>
+          <span />
+        </div>
+      )}
+
       <CreateFoodSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        onCreated={food => setExtraFoods(prev => [food, ...prev])}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ['foods'] })}
       />
     </div>
   )
