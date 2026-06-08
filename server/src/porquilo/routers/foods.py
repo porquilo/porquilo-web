@@ -47,6 +47,21 @@ class FoodRead(BaseModel):
     variants: list[FoodVariantRead]
 
 
+class FoodPage(BaseModel):
+    items: list[FoodRead]
+    total: int
+
+
+VALID_SORT_FIELDS = {"name", "source", "calories", "protein", "fat", "carbs"}
+VALID_SORT_DIRS = {"asc", "desc"}
+NUTRIENT_SORT_KEYS = {
+    "calories": "calories_kcal",
+    "protein": "protein_g",
+    "fat": "fat_g",
+    "carbs": "carbs_g",
+}
+
+
 # ---------------------------------------------------------------------------
 # POST /api/foods — request models
 # ---------------------------------------------------------------------------
@@ -160,15 +175,22 @@ def _bg_normalize(food_id: UUID) -> None:
 # ---------------------------------------------------------------------------
 
 
-@router.get("", response_model=list[FoodRead])
+@router.get("", response_model=FoodPage)
 def search_foods(
     background_tasks: BackgroundTasks,
     q: Optional[str] = None,
     source: Optional[str] = None,
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    sort_by: str = Query(default="name"),
+    sort_dir: str = Query(default="asc"),
     session: Session = Depends(get_session),
-) -> list[FoodRead]:
+) -> FoodPage:
+    if sort_by not in VALID_SORT_FIELDS:
+        raise HTTPException(status_code=422, detail=f"Invalid sort_by: {sort_by!r}")
+    if sort_dir not in VALID_SORT_DIRS:
+        raise HTTPException(status_code=422, detail=f"Invalid sort_dir: {sort_dir!r}")
+
     has_nutrients = sa.exists(
         select(FoodNutrient.id).where(FoodNutrient.food_id == Food.id).correlate(Food)
     )
@@ -183,25 +205,49 @@ def search_foods(
         base = base.where(FoodSource.key == source)
 
     if q and len(q) >= 2:
-        q_lower = q.lower()
-        stmt = base.where(
+        filtered = base.where(
             sa.or_(
                 Food.name.ilike(f"%{q}%"),
                 Food.brand.ilike(f"%{q}%"),
             )
         )
+    else:
+        filtered = base
+
+    dir_fn = sa.asc if sort_dir == "asc" else sa.desc
+
+    if sort_by in NUTRIENT_SORT_KEYS:
+        nutrient_sort = (
+            select(FoodNutrient.value_per_100)
+            .join(NutrientDefinition, FoodNutrient.nutrient_id == NutrientDefinition.id)
+            .where(FoodNutrient.food_id == Food.id)
+            .where(NutrientDefinition.key == NUTRIENT_SORT_KEYS[sort_by])
+            .correlate(Food)
+            .scalar_subquery()
+        )
+        sort_clause = sa.nulls_last(dir_fn(nutrient_sort))
+    elif sort_by == "source":
+        sort_clause = dir_fn(FoodSource.key)
+    else:
+        sort_clause = dir_fn(Food.name)
+
+    if q and len(q) >= 2:
+        q_lower = q.lower()
         order_expr = sa.case(
             (sa.func.lower(Food.name) == q_lower, 0),
             (sa.func.lower(Food.name).like(f"{q_lower}%"), 1),
             else_=2,
         )
-        stmt = stmt.order_by(order_expr)
+        if sort_by == "name":
+            stmt = filtered.order_by(order_expr, sort_clause)
+        else:
+            stmt = filtered.order_by(sort_clause)
     else:
-        stmt = base.order_by(Food.name)
+        stmt = filtered.order_by(sort_clause)
 
-    stmt = stmt.offset(offset).limit(limit)
+    data_stmt = stmt.offset(offset).limit(limit)
 
-    food_rows = session.execute(stmt).all()
+    food_rows = session.execute(data_stmt).all()
 
     # Two-pass: fill from USDA when local cache doesn't satisfy the request.
     if q and len(q) >= 2 and len(food_rows) < limit:
@@ -213,12 +259,16 @@ def search_foods(
                 if is_new:
                     new_food_ids.append(food.id)
             session.commit()
-            food_rows = session.execute(stmt).all()
+            food_rows = session.execute(data_stmt).all()
             for food_id in new_food_ids:
                 background_tasks.add_task(_bg_normalize, food_id)
 
+    total = session.execute(
+        select(sa.func.count()).select_from(filtered.subquery())
+    ).scalar_one()
+
     if not food_rows:
-        return []
+        return FoodPage(items=[], total=total)
 
     food_ids = [row[0].id for row in food_rows]
 
@@ -238,7 +288,7 @@ def search_foods(
             FoodVariantRead(id=fv.id, name=fv.name, amount=fv.amount, unit=fv.unit)
         )
 
-    return [
+    items = [
         FoodRead(
             id=food.id,
             name=food.name,
@@ -251,6 +301,7 @@ def search_foods(
         )
         for food, source_key in food_rows
     ]
+    return FoodPage(items=items, total=total)
 
 
 @router.post("", response_model=FoodOut, status_code=201)
