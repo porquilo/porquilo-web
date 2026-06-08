@@ -45,7 +45,7 @@ OFF_NUTRIENT_MAP: dict[str, tuple[str, float]] = {
     "vitamin-e_100g":            ("vitamin_e_mg",            1000.0),
     "vitamin-b1_100g":           ("thiamin_mg",              1000.0),
     "vitamin-b2_100g":           ("riboflavin_mg",           1000.0),
-    "vitamin-b3_100g":           ("niacin_mg",               1000.0),
+    "vitamin-pp_100g":           ("niacin_mg",               1000.0),
     "vitamin-b6_100g":           ("vitamin_b6_mg",           1000.0),
     "vitamin-b12_100g":          ("vitamin_b12_mcg",         1_000_000.0),
     "folates_100g":              ("folate_mcg",              1_000_000.0),
@@ -68,7 +68,7 @@ NUTRIENT_GROUPS: dict[str, set[str]] = {
     "vitamins": {
         "vitamin-a_100g", "vitamin-c_100g", "vitamin-d_100g",
         "vitamin-e_100g", "vitamin-b1_100g", "vitamin-b2_100g",
-        "vitamin-b3_100g", "vitamin-b6_100g", "vitamin-b12_100g",
+        "vitamin-pp_100g", "vitamin-b6_100g", "vitamin-b12_100g",
         "folates_100g",
     },
 }
@@ -154,6 +154,7 @@ def import_off_dataset(session: Session) -> int:
     """
 
     total = 0
+    logger.info("OFF import started")
     try:
         with duckdb.connect() as con:
             rel = con.execute(query)
@@ -170,6 +171,9 @@ def import_off_dataset(session: Session) -> int:
                 session.commit()
                 off_source.last_synced_at = datetime.now(timezone.utc)
                 session.commit()
+
+                if total % 50_000 == 0:
+                    logger.info("OFF import progress: %d rows upserted", total)
 
                 batch = rel.fetchmany(500)
 
