@@ -141,10 +141,22 @@ def import_off_dataset(session: Session) -> int:
     session.commit()
 
     nutrient_cols = ", ".join(f'"{c}"' for c in OFF_NUTRIENT_MAP)
+    csv_path_str = str(csv_path)
+    count_query = f"""
+        SELECT COUNT(*)
+        FROM read_csv(
+            '{csv_path_str}',
+            header = true,
+            sep = '\t',
+            quote = '',
+            ignore_errors = true
+        )
+        WHERE product_name IS NOT NULL AND product_name != ''
+    """
     query = f"""
         SELECT code, product_name, brands, {nutrient_cols}
         FROM read_csv(
-            '{str(csv_path)}',
+            '{csv_path_str}',
             header = true,
             sep = '\t',
             quote = '',
@@ -153,8 +165,14 @@ def import_off_dataset(session: Session) -> int:
         WHERE product_name IS NOT NULL AND product_name != ''
     """
 
+    with duckdb.connect() as count_con:
+        row_count = count_con.execute(count_query).fetchone()[0]
+    off_source.sync_total = row_count
+    off_source.sync_progress = 0
+    session.commit()
+    logger.info("OFF import started — %d rows to process", row_count)
+
     total = 0
-    logger.info("OFF import started")
     try:
         with duckdb.connect() as con:
             rel = con.execute(query)
@@ -170,6 +188,7 @@ def import_off_dataset(session: Session) -> int:
 
                 session.commit()
                 off_source.last_synced_at = datetime.now(timezone.utc)
+                off_source.sync_progress = total
                 session.commit()
 
                 if total % 50_000 == 0:
