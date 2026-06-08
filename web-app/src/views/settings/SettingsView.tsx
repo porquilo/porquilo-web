@@ -362,7 +362,13 @@ function DataSection({ setToast }: { setToast: (msg: string) => void }) {
   async function handleImport() {
     try {
       await startOffSync()
-      setSyncStatus(s => ({ status: 'queued', last_synced_at: s?.last_synced_at ?? null, error: null }))
+      setSyncStatus(s => ({
+        status: 'queued',
+        last_synced_at: s?.last_synced_at ?? null,
+        error: null,
+        sync_progress: null,
+        sync_total: null,
+      }))
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setToast('Import already running')
@@ -376,6 +382,12 @@ function DataSection({ setToast }: { setToast: (msg: string) => void }) {
       return 'No food database downloaded — text search uses USDA only'
     }
     if (st === 'queued' || st === 'running') {
+      const total = syncStatus?.sync_total ?? 0
+      if (total > 0) {
+        const progress = syncStatus?.sync_progress ?? 0
+        const pct = Math.min(100, Math.round((progress / total) * 100))
+        return `Importing Open Food Facts… ${progress.toLocaleString()} / ${total.toLocaleString()} products (${pct}%)`
+      }
       return 'Importing Open Food Facts… this may take 15–90 minutes'
     }
     if (st === 'succeeded' && syncStatus?.last_synced_at) {
@@ -391,6 +403,10 @@ function DataSection({ setToast }: { setToast: (msg: string) => void }) {
 
   const line = statusLine()
   const failed = syncStatus?.status === 'failed'
+  const determinate = importing && (syncStatus?.sync_total ?? 0) > 0 && syncStatus?.status === 'running'
+  const fillWidth = determinate
+    ? Math.min(100, Math.round(((syncStatus?.sync_progress ?? 0) / (syncStatus?.sync_total ?? 1)) * 100)) + '%'
+    : '30%'
 
   return (
     <SettingsCard head="Data">
@@ -403,6 +419,23 @@ function DataSection({ setToast }: { setToast: (msg: string) => void }) {
         >
           Download food database
         </Button>
+        {importing && (
+          <>
+            <style>{`@keyframes offImportIndeterminate{0%{transform:translateX(-100%)}100%{transform:translateX(430%)}}`}</style>
+            <div style={{ width: '100%', height: 4, background: 'var(--bg-sunken)', borderRadius: 2, overflow: 'hidden', marginTop: 8 }}>
+              <div style={{
+                height: '100%',
+                background: 'var(--accent)',
+                borderRadius: 2,
+                width: fillWidth,
+                ...(determinate
+                  ? { transition: 'width 0.6s var(--ease-out)' }
+                  : { animation: 'offImportIndeterminate 1.4s ease-in-out infinite' }
+                ),
+              }} />
+            </div>
+          </>
+        )}
         {line && (
           <div style={{ fontSize: 12, color: 'var(--fg3)', paddingLeft: 2 }}>{line}</div>
         )}
