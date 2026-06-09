@@ -8,6 +8,7 @@ from sqlmodel import Session
 
 from porquilo.core.llm import LLM_TIMEOUT_SECONDS, is_llm_configured, normalize_food_name
 from porquilo.models.food import Food
+from porquilo.services.search_tokens import reindex_food
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,9 @@ def normalize_and_store(food_id: UUID, session: Session) -> None:
     food = session.get(Food, food_id)
     if food is None:
         return
+
+    reindex_food(food_id, session)
+    session.commit()
 
     if food.display_name_status == "done":
         return

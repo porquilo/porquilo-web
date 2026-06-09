@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from porquilo.models import Food
 from porquilo.services import usda_service
 from porquilo.services.usda_service import search_usda, upsert_usda_food
+from porquilo.services.search_tokens import reindex_food
 
 # ---------------------------------------------------------------------------
 # Realistic USDA API response fixture
@@ -344,6 +345,7 @@ def test_get_foods_no_usda_on_cache_hit(client, db_session):
             ),
             {"id": uuid.uuid4().hex, "fid": fid, "nid": str(nutrient_id)},
         )
+        reindex_food(uuid.UUID(fid), db_session)
 
     with patch("porquilo.routers.foods.search_usda") as mock_search:
         resp = client.get("/api/foods", params={"q": "chicken", "limit": 20})
@@ -392,6 +394,7 @@ def test_get_foods_returns_local_on_usda_failure(client, db_session):
         ),
         {"id": uuid.uuid4().hex, "fid": fid, "nid": str(nutrient_id)},
     )
+    reindex_food(uuid.UUID(fid), db_session)
 
     with patch("porquilo.routers.foods.search_usda", return_value=[]):
         resp = client.get("/api/foods", params={"q": "chicken"})

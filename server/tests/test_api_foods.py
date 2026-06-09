@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
+from porquilo.services.search_tokens import reindex_food
 
 
 @pytest.fixture(autouse=True)
@@ -60,6 +61,7 @@ def _insert_food(
         ),
         {"id": fid, "name": name, "brand": brand, "src": src_id, "ts": _NOW},
     )
+    reindex_food(uuid.UUID(fid), db_session)
     return fid
 
 
@@ -653,6 +655,7 @@ def test_get_foods_response_includes_display_name(client, db_session):
         ),
         {"id": uuid.uuid4().hex, "fid": fid, "nid": nut_id},
     )
+    reindex_food(uuid.UUID(fid), db_session)
 
     resp = client.get("/api/foods", params={"q": "Display Name Food"})
     assert resp.status_code == 200
