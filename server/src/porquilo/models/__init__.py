@@ -2,6 +2,7 @@ from porquilo.models.app_setting import AppSetting
 from porquilo.models.body_metric import BodyMetric
 from porquilo.models.food import Food
 from porquilo.models.food_nutrient import FoodNutrient
+from porquilo.models.food_search_token import FoodSearchToken
 from porquilo.models.food_source import FoodSource
 from porquilo.models.food_variant import FoodVariant
 from porquilo.models.goal import Goal
@@ -22,6 +23,7 @@ __all__ = [
     "BodyMetric",
     "Food",
     "FoodNutrient",
+    "FoodSearchToken",
     "FoodSource",
     "FoodVariant",
     "Goal",

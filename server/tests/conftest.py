@@ -75,6 +75,7 @@ engine_011 = _make_engine_fixture("011")
 engine_012 = _make_engine_fixture("012")
 engine_013 = _make_engine_fixture("013")
 engine_014 = _make_engine_fixture("014")
+engine_015 = _make_engine_fixture("015")
 
 
 @pytest.fixture(params=["sqlite", "pg"])
@@ -128,6 +129,15 @@ def engine():
         @event.listens_for(eng, "connect")
         def _fk(dbapi_conn, _rec):
             dbapi_conn.execute("PRAGMA foreign_keys = ON")
+            # Disable pysqlite's implicit transaction management so that
+            # conn.begin() → SAVEPOINT nesting works correctly for test isolation.
+            # Without this, pysqlite doesn't issue BEGIN before SAVEPOINT, so
+            # RELEASE SAVEPOINT commits to disk and tx.rollback() becomes a no-op.
+            dbapi_conn.isolation_level = None
+
+        @event.listens_for(eng, "begin")
+        def _begin(conn):
+            conn.exec_driver_sql("BEGIN")
     else:
         eng = sa.create_engine(url)
 
