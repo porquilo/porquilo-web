@@ -263,9 +263,18 @@ def search_foods(
             for food_id in new_food_ids:
                 background_tasks.add_task(_bg_normalize, food_id)
 
-    total = session.execute(
-        select(sa.func.count()).select_from(filtered.subquery())
-    ).scalar_one()
+    count_base = (
+        select(sa.func.count())
+        .select_from(Food)
+        .join(FoodSource, Food.food_source_id == FoodSource.id)
+    )
+    if source is not None:
+        count_base = count_base.where(FoodSource.key == source)
+    if q and len(q) >= 2:
+        count_base = count_base.where(
+            sa.or_(Food.name.ilike(f"%{q}%"), Food.brand.ilike(f"%{q}%"))
+        )
+    total = session.execute(count_base).scalar_one()
 
     if not food_rows:
         return FoodPage(items=[], total=total)
