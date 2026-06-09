@@ -204,6 +204,22 @@ def search_foods(
     if source is not None:
         base = base.where(FoodSource.key == source)
 
+    dir_fn = sa.asc if sort_dir == "asc" else sa.desc
+
+    if sort_by in NUTRIENT_SORT_KEYS:
+        nutrient_subq = (
+            select(FoodNutrient.food_id, FoodNutrient.value_per_100)
+            .join(NutrientDefinition, FoodNutrient.nutrient_id == NutrientDefinition.id)
+            .where(NutrientDefinition.key == NUTRIENT_SORT_KEYS[sort_by])
+            .subquery()
+        )
+        base = base.outerjoin(nutrient_subq, nutrient_subq.c.food_id == Food.id)
+        sort_clause = sa.nulls_last(dir_fn(nutrient_subq.c.value_per_100))
+    elif sort_by == "source":
+        sort_clause = dir_fn(FoodSource.key)
+    else:
+        sort_clause = dir_fn(Food.name)
+
     if q and len(q) >= 2:
         filtered = base.where(
             sa.or_(
@@ -213,23 +229,6 @@ def search_foods(
         )
     else:
         filtered = base
-
-    dir_fn = sa.asc if sort_dir == "asc" else sa.desc
-
-    if sort_by in NUTRIENT_SORT_KEYS:
-        nutrient_sort = (
-            select(FoodNutrient.value_per_100)
-            .join(NutrientDefinition, FoodNutrient.nutrient_id == NutrientDefinition.id)
-            .where(FoodNutrient.food_id == Food.id)
-            .where(NutrientDefinition.key == NUTRIENT_SORT_KEYS[sort_by])
-            .correlate(Food)
-            .scalar_subquery()
-        )
-        sort_clause = sa.nulls_last(dir_fn(nutrient_sort))
-    elif sort_by == "source":
-        sort_clause = dir_fn(FoodSource.key)
-    else:
-        sort_clause = dir_fn(Food.name)
 
     if q and len(q) >= 2:
         q_lower = q.lower()
