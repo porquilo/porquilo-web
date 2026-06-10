@@ -135,7 +135,7 @@ def test_downgrade_drops_table(engine_015):
     import os
 
     cfg = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
-    url = str(engine_015.url)
+    url = engine_015.url.render_as_string(hide_password=False)
     cfg.set_main_option("sqlalchemy.url", url)
     cfg.attributes["configure_logger"] = False
 
