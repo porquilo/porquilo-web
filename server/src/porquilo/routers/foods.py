@@ -12,9 +12,11 @@ from sqlmodel import Session, select
 
 from porquilo.core.database import engine, get_session
 from porquilo.services.name_normalization import normalize_and_store
+from porquilo.services.search_tokens import reindex_food, tokenize
 from porquilo.models import (
     Food,
     FoodNutrient,
+    FoodSearchToken,
     FoodSource,
     FoodVariant,
     NutrientDefinition,
@@ -220,29 +222,33 @@ def search_foods(
     else:
         sort_clause = dir_fn(Food.name)
 
+    token_subq = None
     if q and len(q) >= 2:
-        filtered = base.where(
-            sa.or_(
-                Food.name.ilike(f"%{q}%"),
-                Food.brand.ilike(f"%{q}%"),
+        q_tokens = tokenize(q)
+        if q_tokens:
+            # Prefix-match the last typed token; all earlier tokens must match exactly.
+            last_tok = q_tokens[-1]
+            earlier_toks = q_tokens[:-1]
+            match_subq = (
+                select(FoodSearchToken.food_id)
+                .where(FoodSearchToken.token.like(f"{last_tok}%"))
             )
-        )
+            for tok in earlier_toks:
+                match_subq = match_subq.where(
+                    FoodSearchToken.food_id.in_(
+                        select(FoodSearchToken.food_id).where(
+                            FoodSearchToken.token == tok
+                        )
+                    )
+                )
+            token_subq = match_subq.distinct().subquery()
+
+    if token_subq is not None:
+        filtered = base.where(Food.id.in_(select(token_subq.c.food_id)))
     else:
         filtered = base
 
-    if q and len(q) >= 2:
-        q_lower = q.lower()
-        order_expr = sa.case(
-            (sa.func.lower(Food.name) == q_lower, 0),
-            (sa.func.lower(Food.name).like(f"{q_lower}%"), 1),
-            else_=2,
-        )
-        if sort_by == "name":
-            stmt = filtered.order_by(order_expr, sort_clause)
-        else:
-            stmt = filtered.order_by(sort_clause)
-    else:
-        stmt = filtered.order_by(sort_clause)
+    stmt = filtered.order_by(sort_clause)
 
     data_stmt = stmt.offset(offset).limit(limit)
 
@@ -258,6 +264,9 @@ def search_foods(
                 if is_new:
                     new_food_ids.append(food.id)
             session.commit()
+            for fid in new_food_ids:
+                reindex_food(fid, session)
+            session.commit()
             food_rows = session.execute(data_stmt).all()
             for food_id in new_food_ids:
                 background_tasks.add_task(_bg_normalize, food_id)
@@ -269,10 +278,8 @@ def search_foods(
     )
     if source is not None:
         count_base = count_base.where(FoodSource.key == source)
-    if q and len(q) >= 2:
-        count_base = count_base.where(
-            sa.or_(Food.name.ilike(f"%{q}%"), Food.brand.ilike(f"%{q}%"))
-        )
+    if token_subq is not None:
+        count_base = count_base.where(Food.id.in_(select(token_subq.c.food_id)))
     total = session.execute(count_base).scalar_one()
 
     if not food_rows:
