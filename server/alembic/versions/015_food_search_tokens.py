@@ -5,9 +5,6 @@ Revises: 014
 Create Date: 2026-06-08
 """
 
-import re
-import uuid
-
 import sqlalchemy as sa
 from alembic import op
 
@@ -47,40 +44,6 @@ def upgrade() -> None:
     )
     op.create_index("ix_food_search_tokens_token", "food_search_tokens", ["token"])
     op.create_index("ix_food_search_tokens_food_id", "food_search_tokens", ["food_id"])
-
-    # Backfill existing foods in batches.
-    conn = op.get_bind()
-    foods_tbl = sa.table(
-        "foods",
-        sa.column("id", sa.Uuid()),
-        sa.column("name", sa.String()),
-        sa.column("brand", sa.String()),
-    )
-    tokens_tbl = sa.table(
-        "food_search_tokens",
-        sa.column("id", sa.Uuid()),
-        sa.column("food_id", sa.Uuid()),
-        sa.column("token", sa.Text()),
-    )
-
-    BATCH = 500
-    offset = 0
-    while True:
-        rows = conn.execute(
-            sa.select(foods_tbl).offset(offset).limit(BATCH)
-        ).fetchall()
-        if not rows:
-            break
-        to_insert = []
-        for row in rows:
-            tokens = set(_tokenize(row.name)) | set(_tokenize(row.brand))
-            for token in tokens:
-                to_insert.append(
-                    {"id": uuid.uuid4(), "food_id": row.id, "token": token}
-                )
-        if to_insert:
-            conn.execute(tokens_tbl.insert(), to_insert)
-        offset += BATCH
 
 
 def downgrade() -> None:
