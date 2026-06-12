@@ -80,10 +80,10 @@ def run_migrations_online() -> None:
         return
 
     # Prefer an explicit URL from the config (e.g. set by tests); fall back to
-    # the application settings so the default alembic.ini placeholder is ignored.
+    # DATABASE_URL env var (e.g. set by CI), then application settings.
     url = config.get_main_option("sqlalchemy.url")
     if not url or url == "driver://user:pass@localhost/dbname":
-        url = settings.database_url
+        url = os.environ.get("DATABASE_URL") or settings.database_url
 
     connectable = create_engine(url)
 

@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from alembic import command
@@ -15,8 +16,9 @@ from porquilo.routers.sync import router as sync_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    cfg = Config("/app/alembic.ini")
-    command.upgrade(cfg, "head")
+    if os.path.exists("/app/alembic.ini"):
+        cfg = Config("/app/alembic.ini")
+        command.upgrade(cfg, "head")
     yield
 
 
