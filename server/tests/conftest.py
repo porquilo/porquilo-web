@@ -177,7 +177,18 @@ def override_get_session(db_session):
 
 @pytest.fixture
 def client(override_get_session):
+    from contextlib import asynccontextmanager
+
     from fastapi.testclient import TestClient
     from porquilo.main import app
 
-    return TestClient(app)
+    @asynccontextmanager
+    async def _noop_lifespan(app):
+        yield
+
+    original = app.router.lifespan_context
+    app.router.lifespan_context = _noop_lifespan
+    try:
+        yield TestClient(app)
+    finally:
+        app.router.lifespan_context = original
