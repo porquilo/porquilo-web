@@ -86,6 +86,8 @@ jobs:
     - name: Run Playwright tests
       run: npx playwright test --project=chromium
       working-directory: web-app
+      env:
+        API_PROXY_TARGET: http://localhost:8000
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v4
