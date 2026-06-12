@@ -85,7 +85,10 @@ function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood,
 
   if (isSkipped) {
     return (
-      <div style={{ ...sectionStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+      <div
+        style={{ ...sectionStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}
+        data-testid={`meal-section-${mealName.toLowerCase()}`}
+      >
         <span style={nameStyle}>{mealName}</span>
         <button style={dashedButtonStyle} onClick={() => onUnskip(mealId)}>
           Eating after all
@@ -96,7 +99,10 @@ function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood,
 
   if (isEmpty) {
     return (
-      <div style={{ ...sectionStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+      <div
+        style={{ ...sectionStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}
+        data-testid={`meal-section-${mealName.toLowerCase()}`}
+      >
         <span style={nameStyle}>{mealName}</span>
         <div style={{ display: 'flex', gap: 6 }}>
           <button style={dashedButtonStyle} onClick={() => onAddFood(mealId)}>
@@ -115,7 +121,7 @@ function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood,
   const hasEstimated = entries.some(e => e.weight_confidence === 'estimated')
 
   return (
-    <div style={sectionStyle}>
+    <div style={sectionStyle} data-testid={`meal-section-${mealName.toLowerCase()}`}>
       {/* Meal header */}
       <div style={{
         display: 'flex',
@@ -286,7 +292,7 @@ export function DiaryCard({ day, isLoading, onAddFood, selectedDate }: DiaryCard
   }
 
   return (
-    <div style={cardStyle}>
+    <div style={cardStyle} data-testid="diary-card">
       {diaryMeals.map((meal, i) => (
         <MealSection
           key={meal.meal_id}

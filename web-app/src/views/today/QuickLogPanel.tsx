@@ -67,6 +67,7 @@ function ListView({ query, onQueryChange, onSelectFood, onClose, searchInputRef 
           Quick log
         </span>
         <button
+          aria-label="Close"
           onClick={onClose}
           style={{
             background: 'transparent', border: 'none', cursor: 'pointer',
