@@ -72,13 +72,13 @@ jobs:
       run: uv run alembic upgrade head
       working-directory: server
       env:
-        DATABASE_URL: sqlite:///./porquilo-e2e.db
+        SQLITE_PATH: ./porquilo-e2e.db
 
     - name: Start API server
       run: uv run uvicorn porquilo.main:app --host 0.0.0.0 --port 8000 &
       working-directory: server
       env:
-        DATABASE_URL: sqlite:///./porquilo-e2e.db
+        SQLITE_PATH: ./porquilo-e2e.db
 
     - name: Wait for API server
       run: for i in {1..30}; do curl -sf http://localhost:8000/health && break || sleep 1; done
