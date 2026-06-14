@@ -915,6 +915,73 @@ def test_patch_updated_at_changes(client, db_session):
     assert updated != _NOW
 
 
+# ---------------------------------------------------------------------------
+# DELETE /api/foods/{id}
+# ---------------------------------------------------------------------------
+
+
+def test_delete_custom_food_returns_204(client, db_session):
+    fid = _insert_food(db_session, name="Delete Me")
+    _add_nutrient(db_session, fid)
+
+    resp = client.delete(f"/api/foods/{fid}")
+    assert resp.status_code == 204
+    assert resp.content == b""
+
+
+def test_delete_food_then_get_returns_404(client, db_session):
+    fid = _insert_food(db_session, name="Gone Food")
+    _add_nutrient(db_session, fid)
+
+    client.delete(f"/api/foods/{fid}")
+    resp = client.get(f"/api/foods/{fid}")
+    assert resp.status_code == 404
+
+
+def test_delete_cascades_food_nutrients(client, db_session):
+    fid = _insert_food(db_session, name="Cascade Nutrients")
+    _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=100.0)
+    _add_nutrient(db_session, fid, nutrient_key="protein_g", value=10.0)
+
+    resp = client.delete(f"/api/foods/{fid}")
+    assert resp.status_code == 204
+
+    rows = db_session.execute(
+        sa.text("SELECT COUNT(*) FROM food_nutrients WHERE food_id = :fid"),
+        {"fid": fid},
+    ).scalar()
+    assert rows == 0
+
+
+def test_delete_cascades_food_variants(client, db_session):
+    fid = _insert_food(db_session, name="Cascade Variants")
+    _add_nutrient(db_session, fid)
+    _add_variant(db_session, fid, name="1 cup", amount=240.0, unit="ml")
+    _add_variant(db_session, fid, name="1 tbsp", amount=15.0, unit="ml")
+
+    resp = client.delete(f"/api/foods/{fid}")
+    assert resp.status_code == 204
+
+    rows = db_session.execute(
+        sa.text("SELECT COUNT(*) FROM food_variants WHERE food_id = :fid"),
+        {"fid": fid},
+    ).scalar()
+    assert rows == 0
+
+
+def test_delete_usda_food_returns_422(client, db_session):
+    fid = _insert_food(db_session, name="USDA Food", source_key="usda")
+    _add_nutrient(db_session, fid)
+
+    resp = client.delete(f"/api/foods/{fid}")
+    assert resp.status_code == 422
+
+
+def test_delete_unknown_id_returns_404(client):
+    resp = client.delete(f"/api/foods/{uuid.uuid4()}")
+    assert resp.status_code == 404
+
+
 def test_get_foods_enqueues_background_task_for_new_usda_food(client, db_session, monkeypatch):
     """foods.py wires new USDA food IDs into background_tasks after upsert."""
     import uuid as _uuid
