@@ -465,6 +465,20 @@ def patch_food(food_id: UUID, body: FoodPatch, session: Session = Depends(get_se
     return _food_out(food, food_source.key, session)
 
 
+@router.delete("/{food_id}", status_code=204)
+def delete_food(food_id: UUID, session: Session = Depends(get_session)):
+    food = session.get(Food, food_id)
+    if food is None:
+        raise HTTPException(status_code=404, detail="Food not found")
+
+    source = session.get(FoodSource, food.food_source_id)
+    if source is None or source.key != "custom":
+        raise HTTPException(status_code=422, detail="Only custom foods can be deleted")
+
+    session.delete(food)
+    session.commit()
+
+
 @router.get("/lookup/barcode/{upc}", response_model=FoodOut)
 def lookup_food_by_barcode(upc: str, session: Session = Depends(get_session)):
     # C6: barcode lookup — stub until barcode-lookup session is implemented
