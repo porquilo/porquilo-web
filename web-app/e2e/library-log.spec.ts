@@ -37,8 +37,10 @@ test('inline log button triggers a toast confirming the log', async ({ page }) =
   await page.getByPlaceholder('banana, oat milk, …').fill(foodName)
   await expect(page.getByText(foodName)).toBeVisible()
 
-  await page.getByRole('spinbutton').fill('200')
-  await page.getByRole('button', { name: 'Log' }).click()
+  // Scope to the specific food row to avoid strict mode with other rows' inputs
+  const foodRow = page.locator('[data-testid="food-row"]').filter({ hasText: foodName })
+  await foodRow.getByRole('spinbutton').fill('200')
+  await foodRow.getByRole('button', { name: 'Log' }).click()
 
   await expect(page.getByText(/Logged/)).toBeVisible()
 })

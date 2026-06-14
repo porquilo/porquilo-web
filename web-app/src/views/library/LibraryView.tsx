@@ -75,14 +75,17 @@ function FoodRow({ food }: FoodRowProps) {
   }
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: FOODS_GRID,
-      gap: 12,
-      alignItems: 'center',
-      padding: '12px 18px',
-      borderTop: '1px solid var(--border-soft)',
-    }}>
+    <div
+      data-testid="food-row"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: FOODS_GRID,
+        gap: 12,
+        alignItems: 'center',
+        padding: '12px 18px',
+        borderTop: '1px solid var(--border-soft)',
+      }}
+    >
       <div>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg1)' }}>{food.name}</div>
         {food.brand && <div style={{ fontSize: 11, color: 'var(--fg3)', marginTop: 1 }}>{food.brand}</div>}

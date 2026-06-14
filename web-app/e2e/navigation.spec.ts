@@ -45,5 +45,6 @@ test('Quick log panel opens and can be closed', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Close' }).click()
 
-  await expect(page.getByText('Quick log')).not.toBeVisible()
+  // Panel slides off-screen — check it leaves the viewport
+  await expect(page.locator('[data-testid="quick-log-drawer"]')).not.toBeInViewport()
 })

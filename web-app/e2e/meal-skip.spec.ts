@@ -1,6 +1,17 @@
 import { test, expect } from '@playwright/test'
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ request, page }) => {
+  // Clear today's diary entries so meals appear empty regardless of test order
+  const today = new Date().toISOString().slice(0, 10)
+  const res = await request.get(`http://localhost:8000/api/diary/${today}`)
+  if (res.ok()) {
+    const diary = await res.json()
+    for (const meal of diary.meals ?? []) {
+      for (const entry of meal.entries ?? []) {
+        await request.delete(`http://localhost:8000/api/entries/${entry.id}`)
+      }
+    }
+  }
   await page.goto('/')
 })
 

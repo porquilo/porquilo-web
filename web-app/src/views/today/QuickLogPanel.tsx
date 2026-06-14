@@ -607,21 +607,24 @@ export function QuickLogPanel({ open, onClose, defaultMealId, selectedDate }: Qu
       />
 
       {/* Drawer */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: 384,
-        background: 'var(--bg-elevated)',
-        borderLeft: '1px solid var(--border)',
-        boxShadow: 'var(--shadow-4)',
-        transform: open ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform var(--dur-slow) var(--ease-out)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
+      <div
+        data-testid="quick-log-drawer"
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 384,
+          background: 'var(--bg-elevated)',
+          borderLeft: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-4)',
+          transform: open ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform var(--dur-slow) var(--ease-out)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
         {selectedFood ? (
           <DetailView
             food={selectedFood}

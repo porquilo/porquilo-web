@@ -39,17 +39,17 @@ test('logs a food via quick log and the entry appears in the diary', async ({ pa
 
   await expect(page.getByText(foodName)).toBeVisible()
 
-  const amountInput = page.getByRole('spinbutton')
-  await amountInput.fill('150')
+  const drawer = page.locator('[data-testid="quick-log-drawer"]')
+  await drawer.getByRole('spinbutton').fill('150')
 
   // 89 kcal/100g × 1.5 = 133.5 → rounds to 134
-  await expect(page.getByText('134')).toBeVisible()
+  await expect(drawer.getByText('134', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Log it' }).click()
+  await drawer.getByRole('button', { name: 'Log it' }).click()
 
   const diaryCard = page.locator('[data-testid="diary-card"]')
-  await expect(diaryCard.getByText(foodName)).toBeVisible()
-  await expect(diaryCard.getByText('134 kcal')).toBeVisible()
+  await expect(diaryCard).toContainText(foodName)
+  await expect(diaryCard).toContainText('~134 kcal')
 })
 
 test('Log it is disabled when amount is 0', async ({ page }) => {
@@ -63,8 +63,8 @@ test('Log it is disabled when amount is 0', async ({ page }) => {
   await expect(foodButton).toBeVisible()
   await foodButton.click()
 
-  const amountInput = page.getByRole('spinbutton')
-  await amountInput.fill('0')
+  const drawer = page.locator('[data-testid="quick-log-drawer"]')
+  await drawer.getByRole('spinbutton').fill('0')
 
-  await expect(page.getByRole('button', { name: 'Log it' })).toBeDisabled()
+  await expect(drawer.getByRole('button', { name: 'Log it' })).toBeDisabled()
 })
