@@ -48,3 +48,54 @@ def test_list_meals_known_ids(client):
     assert _LUNCH_ID in ids
     assert _DINNER_ID in ids
     assert _SNACK_ID in ids
+
+
+# ---------------------------------------------------------------------------
+# POST /api/meals
+# ---------------------------------------------------------------------------
+
+
+def test_create_meal_returns_201_and_meal_out(client):
+    resp = client.post("/api/meals", json={"name": "Evening Snack"})
+    assert resp.status_code == 201
+    data = resp.json()
+    assert set(data.keys()) == {"id", "name", "sort_order", "is_default"}
+    uuid.UUID(data["id"])
+    assert data["name"] == "Evening Snack"
+    assert isinstance(data["sort_order"], int)
+    assert isinstance(data["is_default"], bool)
+
+
+def test_create_meal_is_default_false(client):
+    resp = client.post("/api/meals", json={"name": "Pre-Workout"})
+    assert resp.status_code == 201
+    assert resp.json()["is_default"] is False
+
+
+def test_create_meal_sort_order_defaults_to_max_plus_one(client):
+    # Seeded meals have sort_order 1–4; new meal should get 5
+    resp = client.post("/api/meals", json={"name": "Late Night"})
+    assert resp.status_code == 201
+    assert resp.json()["sort_order"] == 5
+
+
+def test_create_meal_explicit_sort_order_stored(client):
+    resp = client.post("/api/meals", json={"name": "Brunch", "sort_order": 99})
+    assert resp.status_code == 201
+    assert resp.json()["sort_order"] == 99
+
+
+def test_create_meal_missing_name_returns_422(client):
+    resp = client.post("/api/meals", json={"sort_order": 5})
+    assert resp.status_code == 422
+
+
+def test_create_meal_appears_in_list_in_sort_order(client):
+    client.post("/api/meals", json={"name": "Second Breakfast", "sort_order": 2})
+    resp = client.get("/api/meals")
+    assert resp.status_code == 200
+    meals = resp.json()
+    orders = [m["sort_order"] for m in meals]
+    assert orders == sorted(orders)
+    names = [m["name"] for m in meals]
+    assert "Second Breakfast" in names
