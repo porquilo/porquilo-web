@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useFoods, useAllFoods, FOODS_PAGE_SIZES } from '../../hooks/useFoods'
 import type { FoodPageSize } from '../../hooks/useFoods'
 import { useToast } from '../../contexts/ToastContext'
+import { useMeals } from '../../hooks/useMeals'
+import { useCreateEntry } from '../../hooks/useEntries'
 import { Button } from '../../components/Button'
 import { ConfidenceBadge } from '../../components/ConfidenceBadge'
 import { WIcon, WI } from '../../components/Icon'
@@ -11,6 +13,7 @@ import { Num } from '../../components/Num'
 import { CreateFoodSheet } from './CreateFoodSheet'
 import type { FoodResult } from '../../types/api'
 import { matchesFilter } from './libraryUtils'
+import { formatDate } from '../../utils/dates'
 
 // ── Placeholder recipe data ────────────────────────────────────────────────
 
@@ -41,7 +44,7 @@ const SOURCE_MAP: Record<string, string> = {
 
 // ── FoodRow ────────────────────────────────────────────────────────────────
 
-const FOODS_GRID = '2fr 1fr 1fr 1fr 1fr 1fr'
+const FOODS_GRID = '2fr 1fr 1fr 1fr 1fr 1fr 110px'
 
 interface FoodRowProps {
   food: FoodResult
@@ -49,16 +52,40 @@ interface FoodRowProps {
 
 function FoodRow({ food }: FoodRowProps) {
   const kcalPer100 = Number(food.nutrients['calories_kcal'] ?? 0)
+  const [qty, setQty] = useState(100)
+  const { data: meals = [] } = useMeals()
+  const createEntry = useCreateEntry()
+  const { setToast } = useToast()
+
+  async function handleLog() {
+    const meal = meals[0]
+    if (!meal) return
+    const now = new Date()
+    const h = String(now.getHours()).padStart(2, '0')
+    const m = String(now.getMinutes()).padStart(2, '0')
+    await createEntry.mutateAsync({
+      food_id: food.id,
+      meal_id: meal.id,
+      weight_g: qty,
+      eaten_at: `${formatDate(now)}T${h}:${m}:00`,
+      weight_source: 'manual',
+      input_method: 'library',
+    })
+    setToast(`Logged — ${food.name}`)
+  }
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: FOODS_GRID,
-      gap: 12,
-      alignItems: 'center',
-      padding: '12px 18px',
-      borderTop: '1px solid var(--border-soft)',
-    }}>
+    <div
+      data-testid="food-row"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: FOODS_GRID,
+        gap: 12,
+        alignItems: 'center',
+        padding: '12px 18px',
+        borderTop: '1px solid var(--border-soft)',
+      }}
+    >
       <div>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg1)' }}>{food.name}</div>
         {food.brand && <div style={{ fontSize: 11, color: 'var(--fg3)', marginTop: 1 }}>{food.brand}</div>}
@@ -68,6 +95,43 @@ function FoodRow({ food }: FoodRowProps) {
       <Num suffix="g">{Number(food.nutrients['protein_g'] ?? 0).toFixed(1)}</Num>
       <Num suffix="g">{Number(food.nutrients['fat_g'] ?? 0).toFixed(1)}</Num>
       <Num suffix="g">{Number(food.nutrients['carbs_g'] ?? 0).toFixed(1)}</Num>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          type="number"
+          value={qty}
+          min={1}
+          onChange={e => setQty(Math.max(1, Number(e.target.value) || 1))}
+          style={{
+            width: 52,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 13,
+            color: 'var(--fg1)',
+            background: 'var(--bg-sunken)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            padding: '4px 6px',
+            outline: 'none',
+          }}
+        />
+        <button
+          onClick={() => void handleLog()}
+          disabled={createEntry.isPending}
+          style={{
+            background: 'var(--accent)',
+            color: 'var(--fg-on-accent)',
+            border: 0,
+            borderRadius: 6,
+            padding: '5px 10px',
+            fontFamily: 'var(--font-body)',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {createEntry.isPending ? '…' : 'Log'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -420,6 +484,7 @@ export default function LibraryView() {
                   </button>
                 )
               })}
+              <div />
             </div>
             <div style={{ opacity: activeQuery.isFetching ? 0.5 : 1, transition: 'opacity 0.15s' }}>
               {foods.map(food => (

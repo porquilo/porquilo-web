@@ -96,3 +96,12 @@ def create_entry(body: EntryCreate, session: Session = Depends(get_session)):
             if nid in id_to_key
         },
     )
+
+
+@router.delete("/{entry_id}", status_code=204)
+def delete_entry(entry_id: UUID, session: Session = Depends(get_session)):
+    entry = session.get(LogEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    session.delete(entry)
+    session.commit()
