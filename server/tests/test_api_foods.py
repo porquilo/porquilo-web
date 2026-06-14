@@ -8,7 +8,7 @@
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -769,9 +769,11 @@ def test_get_food_by_id_uses_get_food_with_overrides(client, db_session, monkeyp
 
 def test_get_food_by_id_lookup_route_not_matched_as_uuid(client):
     """Route ordering: /lookup/barcode/... must not be parsed as /{food_id}."""
-    resp = client.get("/api/foods/lookup/barcode/012345678901")
-    # 501 means the lookup stub was reached (not a 422 UUID parse error)
-    assert resp.status_code == 501
+    mock_client, _ = _make_off_mock(status_code=404)
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        resp = client.get("/api/foods/lookup/barcode/012345678901")
+    # 404 means the barcode lookup route was matched (not a 422 UUID parse error)
+    assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -1002,3 +1004,165 @@ def test_get_foods_enqueues_background_task_for_new_usda_food(client, db_session
     assert resp.status_code == 200
     # TestClient runs background tasks synchronously before returning the response.
     assert calls == [fake_food.id]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/foods/lookup/barcode/{upc}
+# ---------------------------------------------------------------------------
+
+_UPC = "012345678905"
+
+_MOCK_OFF_PRODUCT = {
+    "product_name": "Test Cracker",
+    "brands": "Acme, Corp",
+    "code": _UPC,
+    "nutriments": {
+        "energy-kcal_100g": 450,
+        "proteins_100g": 8.0,
+        "carbohydrates_100g": 65.0,
+        "fat_100g": 18.0,
+        "sodium_100g": 0.5,
+    },
+}
+
+
+def _make_off_mock(status_code=200, body=None):
+    """Return a context-manager-compatible mock for httpx.Client."""
+    mock_response = MagicMock()
+    mock_response.status_code = status_code
+    if body is not None:
+        mock_response.json.return_value = body
+    mock_client = MagicMock()
+    mock_client.__enter__ = lambda s: mock_client
+    mock_client.__exit__ = MagicMock(return_value=False)
+    mock_client.get.return_value = mock_response
+    return mock_client, mock_response
+
+
+def test_barcode_cache_hit(client, db_session):
+    """Food already in the DB with matching barcode → 200, no httpx call."""
+    fid = _insert_food(db_session, name="Cached Cracker", source_key="custom")
+    src_id = _food_source_id(db_session, "custom")
+    db_session.execute(
+        sa.text("UPDATE foods SET barcode = :b WHERE id = :id"),
+        {"b": _UPC, "id": fid},
+    )
+    _add_nutrient(db_session, fid, "calories_kcal", 450.0)
+    db_session.commit()
+
+    with patch("porquilo.routers.foods.httpx.Client") as mock_cls:
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+
+    assert resp.status_code == 200
+    mock_cls.assert_not_called()
+    body = resp.json()
+    assert body["name"] == "Cached Cracker"
+
+
+def test_barcode_cache_miss_valid(client, db_session):
+    """Cache miss with valid OFF response → upserts food, returns 200 FoodOut."""
+    mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "Test Cracker"
+    assert body["source"] == "open_food_facts"
+
+
+def test_barcode_cache_miss_second_request(client, db_session):
+    """Second request for same UPC hits the DB cache — no second HTTP call."""
+    mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        r1 = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+    assert r1.status_code == 200
+
+    with patch("porquilo.routers.foods.httpx.Client") as mock_cls2:
+        r2 = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+    assert r2.status_code == 200
+    mock_cls2.assert_not_called()
+
+
+def test_barcode_off_non_200(client, db_session):
+    """OFF returns non-200 → 404."""
+    mock_client, _ = _make_off_mock(status_code=404)
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+    assert resp.status_code == 404
+
+
+def test_barcode_off_no_product_key(client, db_session):
+    """OFF response JSON has no 'product' key → 404."""
+    mock_client, _ = _make_off_mock(body={"status": 0})
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+    assert resp.status_code == 404
+
+
+def test_barcode_off_no_calories(client, db_session):
+    """Product missing energy-kcal_100g → 404, nothing upserted."""
+    product_no_cal = {**_MOCK_OFF_PRODUCT, "nutriments": {"proteins_100g": 8.0}}
+    mock_client, _ = _make_off_mock(body={"product": product_no_cal})
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+    assert resp.status_code == 404
+
+    row = db_session.execute(
+        sa.text("SELECT COUNT(*) FROM foods WHERE barcode = :b"), {"b": _UPC}
+    ).scalar()
+    assert row == 0
+
+
+def test_barcode_sodium_conversion(client, db_session):
+    """sodium_100g = 0.5 g → sodium_mg = 500 in the returned nutrients."""
+    mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+
+    assert resp.status_code == 200
+    nutrients = {n["nutrient_key"]: n["value_per_100"] for n in resp.json()["nutrients"]}
+    assert float(nutrients["sodium_mg"]) == pytest.approx(500.0)
+
+
+def test_barcode_source_is_open_food_facts(client, db_session):
+    """Response source field is 'open_food_facts'."""
+    mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+    assert resp.status_code == 200
+    assert resp.json()["source"] == "open_food_facts"
+
+
+def test_barcode_fields_set_correctly(client, db_session):
+    """Upserted food has barcode and external_source_id equal to the UPC."""
+    mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
+    with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+    assert resp.status_code == 200
+
+    row = db_session.execute(
+        sa.text("SELECT barcode, external_source_id FROM foods WHERE barcode = :b"),
+        {"b": _UPC},
+    ).fetchone()
+    assert row is not None
+    assert row[0] == _UPC
+    assert row[1] == _UPC
+
+
+def test_barcode_route_order():
+    """Grep confirms GET /lookup/barcode is registered before GET /{food_id} in foods.py."""
+    from pathlib import Path
+
+    src = (
+        Path(__file__).parent.parent
+        / "src" / "porquilo" / "routers" / "foods.py"
+    ).read_text()
+
+    lookup_pos = src.find('router.get("/lookup/barcode/{upc}"')
+    food_id_pos = src.find('router.get("/{food_id}"')
+    assert lookup_pos != -1, "GET /lookup/barcode route not found in foods.py"
+    assert food_id_pos != -1, "GET /{food_id} route not found in foods.py"
+    assert lookup_pos < food_id_pos, (
+        "GET /lookup/barcode must appear before GET /{food_id} in foods.py"
+    )

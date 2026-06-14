@@ -215,6 +215,83 @@ def import_off_dataset(session: Session) -> int:
         raise
 
 
+def upsert_off_barcode_food(
+    upc: str,
+    product: dict,
+    session: Session,
+) -> tuple[Food, bool]:
+    """Upsert a single OFF product (from the v2 API) keyed on UPC.
+
+    Returns (food, is_new). Caller is responsible for commit and reindexing.
+    """
+    off_source: FoodSource = session.execute(
+        select(FoodSource).where(FoodSource.key == "open_food_facts")
+    ).scalars().first()
+
+    existing = session.execute(
+        select(Food).where(
+            Food.food_source_id == off_source.id,
+            Food.external_source_id == upc,
+        )
+    ).scalars().first()
+    if existing is not None:
+        return existing, False
+
+    nutriments = product.get("nutriments", {})
+    valid_nutrients: dict[str, float] = {}
+    group_present: dict[str, int] = {g: 0 for g in NUTRIENT_GROUPS}
+
+    for off_col, (porq_key, multiplier) in OFF_NUTRIENT_MAP.items():
+        raw = nutriments.get(off_col)
+        if raw is None:
+            continue
+        try:
+            value = float(raw) * multiplier
+        except (TypeError, ValueError):
+            continue
+        valid_nutrients[porq_key] = value
+        group = _OFF_COL_TO_GROUP.get(off_col)
+        if group:
+            group_present[group] += 1
+
+    def _score(group: str) -> float:
+        return round(group_present[group] / len(NUTRIENT_GROUPS[group]), 4)
+
+    source_completeness = round(len(valid_nutrients) / _TOTAL_NUTRIENTS, 4)
+
+    name = (product.get("product_name") or "").strip()
+    raw_brand = (product.get("brands") or "").strip()
+    brand = raw_brand.split(",")[0].strip() or None
+    now = datetime.now(timezone.utc)
+
+    food = Food(
+        name=name,
+        brand=brand,
+        barcode=upc,
+        food_source_id=off_source.id,
+        external_source_id=upc,
+        created_at=now,
+        updated_at=now,
+        source_fetched_at=now,
+        source_completeness=source_completeness,
+        macro_completeness=_score("macros"),
+        fat_completeness=_score("additional_fats"),
+        mineral_completeness=_score("minerals"),
+        vitamin_completeness=_score("vitamins"),
+        display_name_status="pending",
+    )
+    session.add(food)
+    session.flush()
+
+    for porq_key, value in valid_nutrients.items():
+        nutrient_id = _get_nutrient_id(porq_key, session)
+        if nutrient_id is None:
+            continue
+        session.add(FoodNutrient(food_id=food.id, nutrient_id=nutrient_id, value_per_100=value))
+
+    return food, True
+
+
 def _upsert_off_row(
     row: dict,
     off_source: FoodSource,
