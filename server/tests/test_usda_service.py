@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -329,14 +330,15 @@ def test_get_foods_no_usda_on_cache_hit(client, db_session):
     ).scalar()
 
     # Insert enough foods to fill the default limit (20).
+    _now = datetime.now(timezone.utc)
     for i in range(20):
         fid = uuid.uuid4().hex
         db_session.execute(
             sa.text(
                 "INSERT INTO foods (id, name, food_source_id, default_unit, created_at, updated_at) "
-                "VALUES (:id, :name, :src, 'g', datetime('now'), datetime('now'))"
+                "VALUES (:id, :name, :src, 'g', :ts, :ts)"
             ),
-            {"id": fid, "name": f"Chicken Item {i:02d}", "src": str(usda_source_id)},
+            {"id": fid, "name": f"Chicken Item {i:02d}", "src": str(usda_source_id), "ts": _now},
         )
         db_session.execute(
             sa.text(
@@ -381,12 +383,13 @@ def test_get_foods_returns_local_on_usda_failure(client, db_session):
     ).scalar()
 
     fid = uuid.uuid4().hex
+    _now = datetime.now(timezone.utc)
     db_session.execute(
         sa.text(
             "INSERT INTO foods (id, name, food_source_id, default_unit, created_at, updated_at) "
-            "VALUES (:id, 'Chicken Salad', :src, 'g', datetime('now'), datetime('now'))"
+            "VALUES (:id, 'Chicken Salad', :src, 'g', :ts, :ts)"
         ),
-        {"id": fid, "src": str(usda_source_id)},
+        {"id": fid, "src": str(usda_source_id), "ts": _now},
     )
     db_session.execute(
         sa.text(
