@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
+import httpx
 import sqlalchemy as sa
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, model_validator
@@ -23,6 +24,7 @@ from porquilo.models import (
     NutrientDefinition,
 )
 from porquilo.services.food_service import get_food_with_overrides
+from porquilo.services.off_import_service import upsert_off_barcode_food
 from porquilo.services.usda_service import search_usda, upsert_usda_food
 
 router = APIRouter(prefix="/api/foods", tags=["foods"])
@@ -481,8 +483,46 @@ def delete_food(food_id: UUID, session: Session = Depends(get_session)):
 
 @router.get("/lookup/barcode/{upc}", response_model=FoodOut)
 def lookup_food_by_barcode(upc: str, session: Session = Depends(get_session)):
-    # C6: barcode lookup — stub until barcode-lookup session is implemented
-    raise HTTPException(status_code=501, detail="Barcode lookup not yet implemented")
+    cached = session.execute(
+        select(Food, FoodSource.key.label("source_key"))
+        .join(FoodSource, Food.food_source_id == FoodSource.id)
+        .where(Food.barcode == upc)
+    ).first()
+    if cached is not None:
+        food, source_key = cached
+        return _food_out(food, source_key, session)
+
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(
+                f"https://world.openfoodfacts.org/api/v2/product/{upc}.json"
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=404, detail="Barcode not found")
+    except httpx.RequestError:
+        raise HTTPException(status_code=404, detail="Barcode not found")
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=404, detail="Barcode not found")
+
+    data = response.json()
+    if "product" not in data:
+        raise HTTPException(status_code=404, detail="Barcode not found")
+
+    product = data["product"]
+    if not (product.get("product_name") or "").strip():
+        raise HTTPException(status_code=404, detail="Barcode not found")
+
+    nutriments = product.get("nutriments", {})
+    if nutriments.get("energy-kcal_100g") is None:
+        raise HTTPException(status_code=404, detail="Barcode not found")
+
+    food, is_new = upsert_off_barcode_food(upc, product, session)
+    if is_new:
+        reindex_food(food.id, session)
+    session.commit()
+
+    return _food_out(food, "open_food_facts", session)
 
 
 @router.get("/{food_id}", response_model=FoodOut)
