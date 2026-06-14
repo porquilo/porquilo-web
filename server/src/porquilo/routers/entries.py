@@ -34,6 +34,20 @@ class EntryOut(BaseModel):
     nutrients: dict[str, NutrientValue]
 
 
+class EntryDetailOut(BaseModel):
+    id: UUID
+    food_id: UUID
+    food_name: str
+    meal_id: UUID
+    eaten_at: datetime
+    logged_at: datetime
+    weight_g: Decimal
+    weight_source: str
+    weight_confidence: str
+    input_method: str
+    nutrients: dict[str, NutrientValue]
+
+
 # Must be declared before /{id} routes so FastAPI does not match "batch" as a path parameter.
 @router.post("/batch", status_code=501)
 def create_entries_batch():
@@ -105,3 +119,38 @@ def delete_entry(entry_id: UUID, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Entry not found")
     session.delete(entry)
     session.commit()
+
+
+@router.get("/{entry_id}", response_model=EntryDetailOut)
+def get_entry(entry_id: UUID, session: Session = Depends(get_session)):
+    entry = session.get(LogEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    food = session.get(Food, entry.food_id)
+    food_name = food.name if food else "Unknown"
+
+    nutrient_rows = session.execute(
+        select(LogEntryNutrient, NutrientDefinition)
+        .join(NutrientDefinition, LogEntryNutrient.nutrient_id == NutrientDefinition.id)
+        .where(LogEntryNutrient.log_entry_id == entry.id)
+    ).all()
+
+    nutrients = {
+        nd.key: NutrientValue(value=len_row.value, coverage=len_row.coverage)
+        for len_row, nd in nutrient_rows
+    }
+
+    return EntryDetailOut(
+        id=entry.id,
+        food_id=entry.food_id,
+        food_name=food_name,
+        meal_id=entry.meal_id,
+        eaten_at=entry.eaten_at,
+        logged_at=entry.logged_at,
+        weight_g=entry.weight_g,
+        weight_source=entry.weight_source,
+        weight_confidence=entry.weight_confidence,
+        input_method=entry.input_method,
+        nutrients=nutrients,
+    )
