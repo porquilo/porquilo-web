@@ -42,6 +42,7 @@ export function Button({
   return (
     <button
       type={type}
+      disabled={disabled}
       onClick={disabled ? undefined : onClick}
       style={{ ...base, ...variants[variant], ...(disabled ? disabledStyles : {}), ...style }}
     >
