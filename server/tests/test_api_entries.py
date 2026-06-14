@@ -255,3 +255,68 @@ def test_all_inserts_use_single_session(client, db_session):
 def test_batch_returns_501(client):
     resp = client.post("/api/entries/batch", json=[])
     assert resp.status_code == 501
+
+
+# ---------------------------------------------------------------------------
+# GET /api/entries/{entry_id}
+# ---------------------------------------------------------------------------
+
+
+def test_get_entry_returns_200(client, db_session):
+    fid = _insert_food(db_session, name="Chicken Breast")
+    _add_nutrient(db_session, fid, "protein_g", 31.0)
+    resp = client.post("/api/entries", json=_payload(fid))
+    entry_id = resp.json()["id"]
+
+    resp = client.get(f"/api/entries/{entry_id}")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == entry_id
+
+
+def test_get_entry_food_name(client, db_session):
+    fid = _insert_food(db_session, name="Brown Rice")
+    _add_nutrient(db_session, fid)
+    resp = client.post("/api/entries", json=_payload(fid))
+    entry_id = resp.json()["id"]
+
+    data = client.get(f"/api/entries/{entry_id}").json()
+
+    assert data["food_name"] == "Brown Rice"
+
+
+def test_get_entry_nutrients_keyed_by_definition_key(client, db_session):
+    fid = _insert_food(db_session)
+    _add_nutrient(db_session, fid, "protein_g", 25.0)
+    resp = client.post("/api/entries", json=_payload(fid))
+    entry_id = resp.json()["id"]
+
+    data = client.get(f"/api/entries/{entry_id}").json()
+
+    nutrients = data["nutrients"]
+    assert "protein_g" in nutrients
+    for k in nutrients:
+        try:
+            uuid.UUID(k)
+            assert False, f"nutrient key is a UUID: {k}"
+        except ValueError:
+            pass
+
+
+def test_get_entry_logged_at_present_and_distinct_from_eaten_at(client, db_session):
+    fid = _insert_food(db_session)
+    _add_nutrient(db_session, fid)
+    resp = client.post("/api/entries", json=_payload(fid, eaten_at="2026-06-01T08:00:00"))
+    entry_id = resp.json()["id"]
+
+    data = client.get(f"/api/entries/{entry_id}").json()
+
+    assert "logged_at" in data
+    assert data["logged_at"] is not None
+    assert data["eaten_at"] != data["logged_at"]
+
+
+def test_get_entry_unknown_id_returns_404(client):
+    resp = client.get(f"/api/entries/{uuid.uuid4()}")
+    assert resp.status_code == 404
