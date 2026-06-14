@@ -664,6 +664,116 @@ def test_get_foods_response_includes_display_name(client, db_session):
     assert "display_name" in data[0]
 
 
+# ---------------------------------------------------------------------------
+# GET /api/foods/{id}
+# ---------------------------------------------------------------------------
+
+
+def test_get_food_by_id_returns_200(client, db_session):
+    fid = _insert_food(db_session, name="Single Food")
+    _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=200.0)
+
+    resp = client.get(f"/api/foods/{fid}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "Single Food"
+    uuid.UUID(data["id"])
+
+
+def test_get_food_by_id_response_shape(client, db_session):
+    fid = _insert_food(db_session, name="Shape Food", brand="TestBrand", source_key="usda")
+    _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=100.0)
+    _add_nutrient(db_session, fid, nutrient_key="protein_g", value=5.0)
+    _add_variant(db_session, fid, name="1 cup", amount=240.0, unit="ml")
+
+    resp = client.get(f"/api/foods/{fid}")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    uuid.UUID(data["id"])
+    assert data["name"] == "Shape Food"
+    assert data["brand"] == "TestBrand"
+    assert data["default_unit"] == "g"
+
+
+def test_get_food_by_id_source_is_key_string(client, db_session):
+    fid = _insert_food(db_session, name="Source Key Food", source_key="usda")
+    _add_nutrient(db_session, fid)
+
+    resp = client.get(f"/api/foods/{fid}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["source"] == "usda"
+    try:
+        uuid.UUID(data["source"])
+        assert False, "source should be a key string, not a UUID"
+    except ValueError:
+        pass
+
+
+def test_get_food_by_id_nutrients_list(client, db_session):
+    fid = _insert_food(db_session, name="Nutrient Food")
+    _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=150.0)
+    _add_nutrient(db_session, fid, nutrient_key="protein_g", value=12.5)
+
+    resp = client.get(f"/api/foods/{fid}")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    nutrients = {n["nutrient_key"]: Decimal(n["value_per_100"]) for n in data["nutrients"]}
+    assert nutrients["calories_kcal"] == Decimal("150")
+    assert nutrients["protein_g"] == Decimal("12.5")
+
+
+def test_get_food_by_id_variants_list(client, db_session):
+    fid = _insert_food(db_session, name="Variant Food")
+    _add_nutrient(db_session, fid)
+    _add_variant(db_session, fid, name="1 slice", amount=28.0, unit="g")
+    _add_variant(db_session, fid, name="1 cup", amount=240.0, unit="ml")
+
+    resp = client.get(f"/api/foods/{fid}")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert len(data["variants"]) == 2
+    names = {v["name"] for v in data["variants"]}
+    assert names == {"1 slice", "1 cup"}
+
+
+def test_get_food_by_id_unknown_returns_404(client):
+    missing_id = str(uuid.uuid4())
+    resp = client.get(f"/api/foods/{missing_id}")
+    assert resp.status_code == 404
+
+
+def test_get_food_by_id_uses_get_food_with_overrides(client, db_session, monkeypatch):
+    """Route must delegate to get_food_with_overrides, not query foods directly."""
+    fid = _insert_food(db_session, name="Override Food")
+    _add_nutrient(db_session, fid)
+
+    calls = []
+    original = __import__(
+        "porquilo.services.food_service", fromlist=["get_food_with_overrides"]
+    ).get_food_with_overrides
+
+    def _spy(food_id, session):
+        calls.append(food_id)
+        return original(food_id, session)
+
+    monkeypatch.setattr("porquilo.routers.foods.get_food_with_overrides", _spy)
+
+    resp = client.get(f"/api/foods/{fid}")
+    assert resp.status_code == 200
+    assert len(calls) == 1
+
+
+def test_get_food_by_id_lookup_route_not_matched_as_uuid(client):
+    """Route ordering: /lookup/barcode/... must not be parsed as /{food_id}."""
+    resp = client.get("/api/foods/lookup/barcode/012345678901")
+    # 501 means the lookup stub was reached (not a 422 UUID parse error)
+    assert resp.status_code == 501
+
+
 def test_get_foods_enqueues_background_task_for_new_usda_food(client, db_session, monkeypatch):
     """foods.py wires new USDA food IDs into background_tasks after upsert."""
     import uuid as _uuid

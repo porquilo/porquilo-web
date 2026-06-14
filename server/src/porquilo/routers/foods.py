@@ -21,6 +21,7 @@ from porquilo.models import (
     FoodVariant,
     NutrientDefinition,
 )
+from porquilo.services.food_service import get_food_with_overrides
 from porquilo.services.usda_service import search_usda, upsert_usda_food
 
 router = APIRouter(prefix="/api/foods", tags=["foods"])
@@ -386,3 +387,32 @@ def create_food(body: FoodCreate, session: Session = Depends(get_session)):
     reindex_food(food.id, session)
     session.commit()
     return _food_out(food, food_source.key, session)
+
+
+@router.get("/lookup/barcode/{upc}", response_model=FoodOut)
+def lookup_food_by_barcode(upc: str, session: Session = Depends(get_session)):
+    # C6: barcode lookup — stub until barcode-lookup session is implemented
+    raise HTTPException(status_code=501, detail="Barcode lookup not yet implemented")
+
+
+@router.get("/{food_id}", response_model=FoodOut)
+def get_food(food_id: UUID, session: Session = Depends(get_session)):
+    record = get_food_with_overrides(food_id, session)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Food not found")
+    return FoodOut(
+        id=record["id"],
+        name=record["name"],
+        brand=record["brand"],
+        display_name=None,
+        source=record["source_key"],
+        default_unit=record["default_unit"],
+        nutrients=[
+            NutrientOut(nutrient_key=key, value_per_100=val["value_per_100"])
+            for key, val in record["nutrients"].items()
+        ],
+        variants=[
+            VariantOut(name=v["name"], amount=v["amount"], unit=v["unit"])
+            for v in record["variants"]
+        ],
+    )
