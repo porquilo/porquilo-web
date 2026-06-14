@@ -383,4 +383,6 @@ def create_food(body: FoodCreate, session: Session = Depends(get_session)):
         raise HTTPException(status_code=422, detail="Constraint violation on commit")
 
     session.refresh(food)
+    reindex_food(food.id, session)
+    session.commit()
     return _food_out(food, food_source.key, session)
