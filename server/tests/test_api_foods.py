@@ -774,6 +774,147 @@ def test_get_food_by_id_lookup_route_not_matched_as_uuid(client):
     assert resp.status_code == 501
 
 
+# ---------------------------------------------------------------------------
+# PATCH /api/foods/{id}
+# ---------------------------------------------------------------------------
+
+
+def test_patch_name_only(client, db_session):
+    fid = _insert_food(db_session, name="Old Name")
+    _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=100.0)
+    _add_nutrient(db_session, fid, nutrient_key="protein_g", value=5.0)
+    _add_variant(db_session, fid, name="1 cup", amount=240.0, unit="ml")
+
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "New Name"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "New Name"
+    # nutrients and variants unchanged
+    keys = {n["nutrient_key"] for n in data["nutrients"]}
+    assert "calories_kcal" in keys
+    assert "protein_g" in keys
+    assert len(data["variants"]) == 1
+
+
+def test_patch_nutrients_merge(client, db_session):
+    fid = _insert_food(db_session, name="Merge Food")
+    _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=100.0)
+    _add_nutrient(db_session, fid, nutrient_key="protein_g", value=5.0)
+
+    resp = client.patch(
+        f"/api/foods/{fid}",
+        json={"nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "200.0"}]},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    nutrients = {n["nutrient_key"]: Decimal(n["value_per_100"]) for n in data["nutrients"]}
+    assert nutrients["calories_kcal"] == Decimal("200")
+    # protein_g was not in the patch — must be unchanged
+    assert nutrients["protein_g"] == Decimal("5")
+
+
+def test_patch_variants_replace(client, db_session):
+    fid = _insert_food(db_session, name="Variant Food")
+    _add_nutrient(db_session, fid)
+    _add_variant(db_session, fid, name="Old A", amount=100.0, unit="g")
+    _add_variant(db_session, fid, name="Old B", amount=200.0, unit="g")
+
+    resp = client.patch(
+        f"/api/foods/{fid}",
+        json={"variants": [{"name": "New V", "amount": "50.0", "unit": "g"}]},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["variants"]) == 1
+    assert data["variants"][0]["name"] == "New V"
+
+
+def test_patch_brand_null(client, db_session):
+    fid = _insert_food(db_session, name="Branded Food", brand="Acme")
+    _add_nutrient(db_session, fid)
+
+    resp = client.patch(f"/api/foods/{fid}", json={"brand": None})
+    assert resp.status_code == 200
+    assert resp.json()["brand"] is None
+
+
+def test_patch_omitted_brand_unchanged(client, db_session):
+    fid = _insert_food(db_session, name="Keep Brand", brand="Keep")
+    _add_nutrient(db_session, fid)
+
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "Keep Brand Updated"})
+    assert resp.status_code == 200
+    assert resp.json()["brand"] == "Keep"
+
+
+def test_patch_duplicate_barcode_returns_422(client):
+    first = client.post(
+        "/api/foods",
+        json={
+            "name": "First Bar",
+            "barcode": "111000000001",
+            "nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "100"}],
+        },
+    )
+    assert first.status_code == 201
+    second = client.post(
+        "/api/foods",
+        json={
+            "name": "Second Bar",
+            "nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "100"}],
+        },
+    )
+    assert second.status_code == 201
+    second_id = second.json()["id"]
+
+    resp = client.patch(f"/api/foods/{second_id}", json={"barcode": "111000000001"})
+    assert resp.status_code == 422
+
+
+def test_patch_usda_food_returns_422(client, db_session):
+    fid = _insert_food(db_session, name="USDA Food", source_key="usda")
+    _add_nutrient(db_session, fid)
+
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "Updated"})
+    assert resp.status_code == 422
+
+
+def test_patch_unknown_id_returns_404(client):
+    resp = client.patch(f"/api/foods/{uuid.uuid4()}", json={"name": "Ghost"})
+    assert resp.status_code == 404
+
+
+def test_patch_response_is_food_out(client, db_session):
+    fid = _insert_food(db_session, name="Shape Check")
+    _add_nutrient(db_session, fid)
+
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "Shape Check 2"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert set(data.keys()) >= {"id", "name", "source", "default_unit", "nutrients", "variants"}
+    uuid.UUID(data["id"])
+    assert data["source"] == "custom"
+
+
+def test_patch_updated_at_changes(client, db_session):
+    fid = _insert_food(db_session, name="Timestamp Food")
+    _add_nutrient(db_session, fid)
+
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "Timestamp Food 2"})
+    assert resp.status_code == 200
+
+    row = db_session.execute(
+        sa.text("SELECT updated_at FROM foods WHERE id = :id"), {"id": fid}
+    ).fetchone()
+    assert row is not None
+    # updated_at must have advanced past the original _NOW
+    updated = row[0]
+    if isinstance(updated, str):
+        from datetime import datetime
+        updated = datetime.fromisoformat(updated)
+    assert updated != _NOW
+
+
 def test_get_foods_enqueues_background_task_for_new_usda_food(client, db_session, monkeypatch):
     """foods.py wires new USDA food IDs into background_tasks after upsert."""
     import uuid as _uuid

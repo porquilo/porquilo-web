@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
@@ -97,6 +98,16 @@ class FoodCreate(BaseModel):
         if "calories_kcal" not in keys:
             raise ValueError("nutrients must include calories_kcal")
         return self
+
+
+class FoodPatch(BaseModel):
+    # model_fields_set distinguishes "omitted" from "explicitly set to null"
+    name: Optional[str] = None
+    brand: Optional[str] = None
+    barcode: Optional[str] = None
+    default_unit: Optional[str] = None
+    nutrients: Optional[list[NutrientIn]] = None
+    variants: Optional[list[VariantIn]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +397,71 @@ def create_food(body: FoodCreate, session: Session = Depends(get_session)):
     session.refresh(food)
     reindex_food(food.id, session)
     session.commit()
+    return _food_out(food, food_source.key, session)
+
+
+@router.patch("/{food_id}", response_model=FoodOut)
+def patch_food(food_id: UUID, body: FoodPatch, session: Session = Depends(get_session)):
+    food = session.get(Food, food_id)
+    if food is None:
+        raise HTTPException(status_code=404, detail="Food not found")
+
+    food_source = session.get(FoodSource, food.food_source_id)
+    if food_source is None or food_source.key != "custom":
+        raise HTTPException(status_code=422, detail="Only custom foods can be edited")
+
+    if "name" in body.model_fields_set:
+        food.name = body.name
+    if "brand" in body.model_fields_set:
+        food.brand = body.brand
+    if "barcode" in body.model_fields_set:
+        food.barcode = body.barcode
+    if "default_unit" in body.model_fields_set:
+        food.default_unit = body.default_unit
+
+    food.updated_at = datetime.now(timezone.utc)
+    session.add(food)
+
+    if body.nutrients is not None:
+        for ni in body.nutrients:
+            nd = session.execute(
+                select(NutrientDefinition).where(NutrientDefinition.key == ni.nutrient_key)
+            ).scalars().first()
+            if nd is None:
+                raise HTTPException(
+                    status_code=422, detail=f"Unknown nutrient_key: {ni.nutrient_key!r}"
+                )
+            existing = session.execute(
+                select(FoodNutrient)
+                .where(FoodNutrient.food_id == food.id)
+                .where(FoodNutrient.nutrient_id == nd.id)
+            ).scalars().first()
+            if existing:
+                existing.value_per_100 = ni.value_per_100
+            else:
+                session.add(
+                    FoodNutrient(food_id=food.id, nutrient_id=nd.id, value_per_100=ni.value_per_100)
+                )
+
+    if body.variants is not None:
+        session.execute(sa.delete(FoodVariant).where(FoodVariant.food_id == food.id))
+        for vi in body.variants:
+            session.add(
+                FoodVariant(food_id=food.id, name=vi.name, amount=vi.amount, unit=vi.unit)
+            )
+
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=422, detail="Duplicate barcode or constraint violation")
+
+    session.refresh(food)
+
+    if "name" in body.model_fields_set:
+        reindex_food(food.id, session)
+        session.commit()
+
     return _food_out(food, food_source.key, session)
 
 
