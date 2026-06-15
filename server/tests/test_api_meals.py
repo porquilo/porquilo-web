@@ -6,6 +6,9 @@
 #     pytest server/tests/test_api_meals.py
 
 import uuid
+from datetime import datetime
+
+import sqlalchemy as sa
 
 # Seeded meal IDs from migration 001 (hardcoded, deterministic across fresh installs)
 _BREAKFAST_ID = "7c8c92bd-f6b5-4923-ae42-77d883a70da6"
@@ -99,3 +102,150 @@ def test_create_meal_appears_in_list_in_sort_order(client):
     assert orders == sorted(orders)
     names = [m["name"] for m in meals]
     assert "Second Breakfast" in names
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/meals/{id}
+# ---------------------------------------------------------------------------
+
+
+def _food_source_id(db_session, key="custom"):
+    row = db_session.execute(
+        sa.text("SELECT id FROM food_sources WHERE key = :k"), {"k": key}
+    ).fetchone()
+    assert row is not None, f"food_source '{key}' not in DB"
+    return str(row[0])
+
+
+def _insert_food(db_session):
+    fid = uuid.uuid4().hex
+    src_id = _food_source_id(db_session)
+    now = datetime.utcnow()
+    db_session.execute(
+        sa.text(
+            "INSERT INTO foods (id, name, food_source_id, default_unit, created_at, updated_at) "
+            "VALUES (:id, :name, :src, 'g', :ts, :ts)"
+        ),
+        {"id": fid, "name": "Test Food", "src": src_id, "ts": now},
+    )
+    return fid
+
+
+def _insert_log_entry(db_session, meal_id, food_id):
+    eid = uuid.uuid4().hex
+    # Normalize to 32-char hex — SQLite stores sa.Uuid as hex (no hyphens)
+    mid = uuid.UUID(meal_id).hex if "-" in meal_id else meal_id
+    fid = uuid.UUID(food_id).hex if "-" in food_id else food_id
+    now = datetime.utcnow()
+    db_session.execute(
+        sa.text(
+            "INSERT INTO log_entries "
+            "(id, food_id, meal_id, eaten_at, logged_at, weight_g, weight_source, weight_confidence, input_method, created_at) "
+            "VALUES (:id, :fid, :mid, :ts, :ts, 100.0, 'scale', 'measured', 'manual', :ts)"
+        ),
+        {"id": eid, "fid": fid, "mid": mid, "ts": now},
+    )
+    return eid
+
+
+def test_delete_meal_returns_204(client):
+    resp = client.post("/api/meals", json={"name": "To Delete"})
+    meal_id = resp.json()["id"]
+    resp = client.delete(f"/api/meals/{meal_id}")
+    assert resp.status_code == 204
+
+
+def test_deleted_meal_not_in_list(client):
+    resp = client.post("/api/meals", json={"name": "Gone"})
+    meal_id = resp.json()["id"]
+    client.delete(f"/api/meals/{meal_id}")
+    ids = [m["id"] for m in client.get("/api/meals").json()]
+    assert meal_id not in ids
+
+
+def test_delete_default_meal_returns_422(client):
+    resp = client.delete(f"/api/meals/{_BREAKFAST_ID}")
+    assert resp.status_code == 422
+
+
+def test_delete_meal_with_log_entries_returns_422(client, db_session):
+    resp = client.post("/api/meals", json={"name": "Occupied"})
+    meal_id = resp.json()["id"]
+    fid = _insert_food(db_session)
+    _insert_log_entry(db_session, meal_id, fid)
+    resp = client.delete(f"/api/meals/{meal_id}")
+    assert resp.status_code == 422
+
+
+def test_delete_unknown_meal_returns_404(client):
+    resp = client.delete(f"/api/meals/{uuid.uuid4()}")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/meals/{id}
+# ---------------------------------------------------------------------------
+
+
+def test_patch_meal_name_renames_and_preserves_sort_order(client):
+    resp = client.patch(f"/api/meals/{_SNACK_ID}", json={"name": "Evening Snack"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "Evening Snack"
+    # sort_order for Snack is 4 — must be unchanged
+    assert data["sort_order"] == 4
+
+
+def test_patch_meal_sort_order_reorders_and_preserves_name(client):
+    resp = client.patch(f"/api/meals/{_BREAKFAST_ID}", json={"sort_order": 10})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["sort_order"] == 10
+    assert data["name"] == "Breakfast"
+
+
+def test_patch_default_meal_works(client):
+    resp = client.patch(f"/api/meals/{_BREAKFAST_ID}", json={"name": "Morning Meal"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "Morning Meal"
+    assert data["is_default"] is True
+
+
+def test_patch_custom_meal_works(client):
+    create_resp = client.post("/api/meals", json={"name": "Brunch"})
+    assert create_resp.status_code == 201
+    meal_id = create_resp.json()["id"]
+
+    resp = client.patch(f"/api/meals/{meal_id}", json={"name": "Late Brunch", "sort_order": 99})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "Late Brunch"
+    assert data["sort_order"] == 99
+    assert data["is_default"] is False
+
+
+def test_patch_unknown_id_returns_404(client):
+    resp = client.patch(f"/api/meals/{uuid.uuid4()}", json={"name": "Ghost"})
+    assert resp.status_code == 404
+
+
+def test_patch_response_is_meal_out_shape(client):
+    resp = client.patch(f"/api/meals/{_LUNCH_ID}", json={"name": "Big Lunch"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert set(data.keys()) == {"id", "name", "sort_order", "is_default"}
+    uuid.UUID(data["id"])
+    assert isinstance(data["name"], str)
+    assert isinstance(data["sort_order"], int)
+    assert isinstance(data["is_default"], bool)
+
+
+def test_patch_meal_appears_correctly_in_list(client):
+    client.patch(f"/api/meals/{_DINNER_ID}", json={"name": "Supper", "sort_order": 3})
+    resp = client.get("/api/meals")
+    assert resp.status_code == 200
+    meals = resp.json()
+    dinner = next(m for m in meals if m["id"] == _DINNER_ID)
+    assert dinner["name"] == "Supper"
+    assert dinner["sort_order"] == 3
