@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,6 +47,43 @@ class EntryDetailOut(BaseModel):
     weight_confidence: str
     input_method: str
     nutrients: dict[str, NutrientValue]
+
+
+class EntryPatch(BaseModel):
+    meal_id:       Optional[UUID]     = None
+    eaten_at:      Optional[datetime] = None
+    weight_g:      Optional[Decimal]  = None
+    weight_source: Optional[str]      = None
+
+
+def _entry_detail_out(entry: LogEntry, session: Session) -> EntryDetailOut:
+    food = session.get(Food, entry.food_id)
+    food_name = food.name if food else "Unknown"
+
+    nutrient_rows = session.execute(
+        select(LogEntryNutrient, NutrientDefinition)
+        .join(NutrientDefinition, LogEntryNutrient.nutrient_id == NutrientDefinition.id)
+        .where(LogEntryNutrient.log_entry_id == entry.id)
+    ).all()
+
+    nutrients = {
+        nd.key: NutrientValue(value=len_row.value, coverage=len_row.coverage)
+        for len_row, nd in nutrient_rows
+    }
+
+    return EntryDetailOut(
+        id=entry.id,
+        food_id=entry.food_id,
+        food_name=food_name,
+        meal_id=entry.meal_id,
+        eaten_at=entry.eaten_at,
+        logged_at=entry.logged_at,
+        weight_g=entry.weight_g,
+        weight_source=entry.weight_source,
+        weight_confidence=entry.weight_confidence,
+        input_method=entry.input_method,
+        nutrients=nutrients,
+    )
 
 
 # Must be declared before /{id} routes so FastAPI does not match "batch" as a path parameter.
@@ -121,36 +159,55 @@ def delete_entry(entry_id: UUID, session: Session = Depends(get_session)):
     session.commit()
 
 
+@router.patch("/{entry_id}", response_model=EntryDetailOut)
+def patch_entry(entry_id: UUID, body: EntryPatch, session: Session = Depends(get_session)):
+    entry = session.get(LogEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    if "meal_id" in body.model_fields_set:
+        meal = session.get(Meal, body.meal_id)
+        if meal is None:
+            raise HTTPException(status_code=422, detail="meal_id not found")
+        entry.meal_id = body.meal_id
+
+    if "eaten_at" in body.model_fields_set:
+        entry.eaten_at = body.eaten_at
+
+    if {"weight_g", "weight_source"} & body.model_fields_set:
+        effective_weight_g = body.weight_g if "weight_g" in body.model_fields_set else entry.weight_g
+        effective_weight_source = body.weight_source if "weight_source" in body.model_fields_set else entry.weight_source
+
+        entry.weight_g = effective_weight_g
+        entry.weight_source = effective_weight_source
+        entry.weight_confidence = derive_confidence(effective_weight_source)
+
+        nutrients_by_id = compute_nutrients(entry.food_id, effective_weight_g, session)
+
+        existing = session.execute(
+            select(LogEntryNutrient).where(LogEntryNutrient.log_entry_id == entry.id)
+        ).scalars().all()
+        for row in existing:
+            session.delete(row)
+        session.flush()
+
+        for nutrient_id, ndata in nutrients_by_id.items():
+            session.add(LogEntryNutrient(
+                log_entry_id=entry.id,
+                nutrient_id=nutrient_id,
+                value=ndata["value"],
+                coverage=ndata["coverage"],
+            ))
+
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    return _entry_detail_out(entry, session)
+
+
 @router.get("/{entry_id}", response_model=EntryDetailOut)
 def get_entry(entry_id: UUID, session: Session = Depends(get_session)):
     entry = session.get(LogEntry, entry_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
-
-    food = session.get(Food, entry.food_id)
-    food_name = food.name if food else "Unknown"
-
-    nutrient_rows = session.execute(
-        select(LogEntryNutrient, NutrientDefinition)
-        .join(NutrientDefinition, LogEntryNutrient.nutrient_id == NutrientDefinition.id)
-        .where(LogEntryNutrient.log_entry_id == entry.id)
-    ).all()
-
-    nutrients = {
-        nd.key: NutrientValue(value=len_row.value, coverage=len_row.coverage)
-        for len_row, nd in nutrient_rows
-    }
-
-    return EntryDetailOut(
-        id=entry.id,
-        food_id=entry.food_id,
-        food_name=food_name,
-        meal_id=entry.meal_id,
-        eaten_at=entry.eaten_at,
-        logged_at=entry.logged_at,
-        weight_g=entry.weight_g,
-        weight_source=entry.weight_source,
-        weight_confidence=entry.weight_confidence,
-        input_method=entry.input_method,
-        nutrients=nutrients,
-    )
+    return _entry_detail_out(entry, session)
