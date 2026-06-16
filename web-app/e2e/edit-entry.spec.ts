@@ -1,5 +1,5 @@
 // Before running this suite, start the FastAPI server:
-//   cd server && SQLITE_PATH=/absolute/path/to/porquilo.db uv run fastapi dev --port 4184 src/porquilo/main.py
+//   cd server && SQLITE_PATH=/absolute/path/to/porquilo.db uv run fastapi dev --port 8000 src/porquilo/main.py
 // The Vite dev server is started automatically by playwright.config.ts.
 
 import { test, expect } from '@playwright/test'
@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test'
 // Tests mutate shared diary state so must not run in parallel
 test.describe.configure({ mode: 'serial' })
 
-const API = 'http://localhost:4184'
+const API = 'http://localhost:8000'
 const today = new Date().toISOString().slice(0, 10)
 
 let foodId: string
