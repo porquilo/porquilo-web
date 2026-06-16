@@ -123,3 +123,24 @@ export interface CreateEntryResponse {
   id: string
   nutrients: Record<string, NutrientValue>
 }
+
+export interface EntryDetailOut {
+  id: string
+  food_id: string
+  food_name: string
+  meal_id: string
+  eaten_at: string
+  logged_at: string
+  weight_g: number
+  weight_source: string
+  weight_confidence: Confidence
+  input_method: string
+  nutrients: Record<string, { value: number; coverage: string }>
+}
+
+export interface UpdateEntryRequest {
+  meal_id?: string
+  eaten_at?: string
+  weight_g?: number
+  weight_source?: string
+}

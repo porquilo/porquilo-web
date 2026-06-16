@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar'
 import { ToastProvider, useToast } from './contexts/ToastContext'
 import { TodayView } from './views/today/TodayView'
 import { QuickLogPanel } from './views/today/QuickLogPanel'
+import { EditEntryPanel } from './views/today/EditEntryPanel'
 import LibraryView from './views/library/LibraryView'
 import ReportsView from './views/reports/ReportsView'
 import SettingsView from './views/settings/SettingsView'
@@ -15,6 +16,7 @@ function Shell() {
   const [selectedDate, setSelectedDate] = useState<string>(() => formatDate(new Date()))
   const [logOpen, setLogOpen] = useState(false)
   const [logDefaultMealId, setLogDefaultMealId] = useState<string | undefined>()
+  const [editEntryId, setEditEntryId] = useState<string | null>(null)
   const { toast } = useToast()
 
   function openLog(mealId?: string) {
@@ -27,6 +29,7 @@ function Shell() {
       case 'today':    return (
         <TodayView
           onOpenLog={openLog}
+          onEditEntry={setEditEntryId}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
         />
@@ -55,6 +58,10 @@ function Shell() {
           onClose={() => setLogOpen(false)}
           defaultMealId={logDefaultMealId}
           selectedDate={selectedDate}
+        />
+        <EditEntryPanel
+          entryId={editEntryId}
+          onClose={() => setEditEntryId(null)}
         />
 
         {toast && (

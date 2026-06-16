@@ -8,11 +8,12 @@ import { DiaryCard } from './DiaryCard'
 
 export interface TodayViewProps {
   onOpenLog: (mealId?: string) => void
+  onEditEntry: (entryId: string) => void
   selectedDate: string
   onDateChange: (d: string) => void
 }
 
-export function TodayView({ onOpenLog, selectedDate, onDateChange }: TodayViewProps) {
+export function TodayView({ onOpenLog, onEditEntry, selectedDate, onDateChange }: TodayViewProps) {
   const { data: day, isLoading } = useDiary(selectedDate)
 
   return (
@@ -106,6 +107,7 @@ export function TodayView({ onOpenLog, selectedDate, onDateChange }: TodayViewPr
           day={day}
           isLoading={isLoading}
           onAddFood={(mealId) => onOpenLog(mealId)}
+          onEditEntry={onEditEntry}
           selectedDate={selectedDate}
         />
       </div>
