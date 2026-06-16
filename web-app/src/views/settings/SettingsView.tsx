@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '../../components/Button'
 import { ConfidenceBadge } from '../../components/ConfidenceBadge'
+import { WIcon } from '../../components/Icon'
 import { useToast } from '../../contexts/ToastContext'
+import { useMeals } from '../../hooks/useMeals'
+import { createMeal, patchMeal, deleteMeal } from '../../api/meals'
 import { getSettings, putSetting } from '../../api/settings'
 import type { SettingRead } from '../../api/settings'
 import { startOffSync, getOffSyncStatus } from '../../api/sync'
@@ -11,11 +15,12 @@ import { ApiError } from '../../api/client'
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
-type Section = 'goals' | 'profile' | 'integrations' | 'data' | 'about'
+type Section = 'goals' | 'profile' | 'meals' | 'integrations' | 'data' | 'about'
 
 const NAV_ITEMS: { id: Section; label: string }[] = [
   { id: 'goals',        label: 'Goals' },
   { id: 'profile',      label: 'Profile' },
+  { id: 'meals',        label: 'Meals' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'data',         label: 'Data' },
   { id: 'about',        label: 'About' },
@@ -502,6 +507,233 @@ function AboutSection() {
   )
 }
 
+const PENCIL = 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'
+const TRASH  = 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6'
+const LOCK   = 'M18 11H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM8 11V7a4 4 0 0 1 8 0v4'
+
+const iconBtnStyle: CSSProperties = {
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  color: 'var(--fg3)',
+  padding: 4,
+  display: 'flex',
+  alignItems: 'center',
+}
+
+function MealsSection() {
+  const { setToast } = useToast()
+  const queryClient = useQueryClient()
+  const { data: mealsRaw = [] } = useMeals()
+  const meals = [...mealsRaw].sort((a, b) => a.sort_order - b.sort_order)
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [addingNew, setAddingNew] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  const editInputRef = useRef<HTMLInputElement>(null)
+  const newInputRef = useRef<HTMLInputElement>(null)
+
+  async function commitRename() {
+    if (!editingId) return
+    const trimmed = editingName.trim()
+    if (!trimmed) {
+      editInputRef.current?.focus()
+      return
+    }
+    await patchMeal(editingId, { name: trimmed })
+    await queryClient.invalidateQueries({ queryKey: ['meals'] })
+    setEditingId(null)
+  }
+
+  async function commitAdd() {
+    const trimmed = newName.trim()
+    if (!trimmed) {
+      newInputRef.current?.focus()
+      return
+    }
+    await createMeal(trimmed)
+    await queryClient.invalidateQueries({ queryKey: ['meals'] })
+    setAddingNew(false)
+    setNewName('')
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteMeal(id)
+      await queryClient.invalidateQueries({ queryKey: ['meals'] })
+      setConfirmDeleteId(null)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 422) {
+        setToast("Can't delete — meal has diary entries")
+      }
+      setConfirmDeleteId(null)
+    }
+  }
+
+  function handleDrop(targetId: string) {
+    if (!draggingId || draggingId === targetId) return
+    const sorted = [...meals]
+    const fromIdx = sorted.findIndex(m => m.id === draggingId)
+    const toIdx   = sorted.findIndex(m => m.id === targetId)
+    if (fromIdx === -1 || toIdx === -1) return
+    const [moved] = sorted.splice(fromIdx, 1)
+    sorted.splice(toIdx, 0, moved)
+    const updates = sorted
+      .map((m, i) => ({ id: m.id, old: m.sort_order, new: i + 1 }))
+      .filter(u => u.old !== u.new)
+    void Promise.all(updates.map(u => patchMeal(u.id, { sort_order: u.new }))).then(() => {
+      void queryClient.invalidateQueries({ queryKey: ['meals'] })
+    })
+    setDraggingId(null)
+  }
+
+  return (
+    <SettingsCard head="Meals" sub="Drag to reorder. Default meals can't be renamed or removed.">
+      {meals.map(meal => (
+        <div
+          key={meal.id}
+          draggable
+          onDragStart={() => setDraggingId(meal.id)}
+          onDragOver={e => { e.preventDefault() }}
+          onDrop={() => handleDrop(meal.id)}
+          onDragEnd={() => setDraggingId(null)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 0',
+            borderBottom: '1px dashed var(--border-soft)',
+            minHeight: 40,
+            opacity: draggingId === meal.id ? 0.4 : 1,
+          }}
+        >
+          {/* Drag handle */}
+          <span style={{
+            fontSize: 16,
+            color: 'var(--fg3)',
+            cursor: 'grab',
+            userSelect: 'none',
+            flexShrink: 0,
+          }}>
+            ⠿
+          </span>
+
+          {/* Name / input */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editingId === meal.id ? (
+              <input
+                ref={editInputRef}
+                autoFocus
+                value={editingName}
+                onChange={e => setEditingName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') void commitRename()
+                  if (e.key === 'Escape') setEditingId(null)
+                }}
+                style={{ ...inputStyle, width: '100%' }}
+              />
+            ) : (
+              <span style={{ fontSize: 14, color: 'var(--fg1)' }}>{meal.name}</span>
+            )}
+          </div>
+
+          {/* Right controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {meal.is_default ? (
+              <span style={{ color: 'var(--fg3)', display: 'flex', alignItems: 'center' }}>
+                <WIcon d={LOCK} size={16} />
+              </span>
+            ) : confirmDeleteId === meal.id ? (
+              <>
+                <span style={{ fontSize: 12, color: 'var(--fg2)', marginRight: 4 }}>Delete?</span>
+                <Button variant="primary" onClick={() => void handleDelete(meal.id)}>Confirm</Button>
+                <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+              </>
+            ) : editingId === meal.id ? (
+              <>
+                <button
+                  style={iconBtnStyle}
+                  onClick={() => void commitRename()}
+                  title="Save"
+                >
+                  <span style={{ fontSize: 16 }}>✓</span>
+                </button>
+                <button
+                  style={iconBtnStyle}
+                  onClick={() => setEditingId(null)}
+                  title="Cancel"
+                >
+                  <span style={{ fontSize: 16 }}>✕</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  style={iconBtnStyle}
+                  onClick={() => { setEditingId(meal.id); setEditingName(meal.name) }}
+                  title="Rename"
+                >
+                  <WIcon d={PENCIL} size={16} />
+                </button>
+                <button
+                  style={iconBtnStyle}
+                  onClick={() => setConfirmDeleteId(meal.id)}
+                  title="Delete"
+                >
+                  <WIcon d={TRASH} size={16} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {/* Add meal row */}
+      {addingNew ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+          <input
+            ref={newInputRef}
+            autoFocus
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') void commitAdd()
+              if (e.key === 'Escape') { setAddingNew(false); setNewName('') }
+            }}
+            placeholder="Meal name"
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button style={iconBtnStyle} onClick={() => void commitAdd()} title="Save">
+            <span style={{ fontSize: 16 }}>✓</span>
+          </button>
+          <button style={iconBtnStyle} onClick={() => { setAddingNew(false); setNewName('') }} title="Cancel">
+            <span style={{ fontSize: 16 }}>✕</span>
+          </button>
+        </div>
+      ) : (
+        <div
+          onClick={() => setAddingNew(true)}
+          style={{
+            border: '1px dashed var(--border-soft)',
+            borderRadius: 8,
+            padding: '8px 12px',
+            cursor: 'pointer',
+            color: 'var(--fg3)',
+            fontSize: 14,
+            marginTop: 8,
+          }}
+        >
+          + Add meal
+        </div>
+      )}
+    </SettingsCard>
+  )
+}
+
 // ─── main view ───────────────────────────────────────────────────────────────
 
 export default function SettingsView() {
@@ -574,7 +806,8 @@ export default function SettingsView() {
         <div>
           {section === 'goals'        && <GoalsSection setToast={setToast} />}
           {section === 'profile'      && <ProfileSection setToast={setToast} />}
-{section === 'integrations' && <IntegrationsSection setToast={setToast} />}
+          {section === 'meals'        && <MealsSection />}
+          {section === 'integrations' && <IntegrationsSection setToast={setToast} />}
           {section === 'data'         && <DataSection setToast={setToast} />}
           {section === 'about'        && <AboutSection />}
         </div>
