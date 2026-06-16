@@ -7,6 +7,7 @@ export interface DiaryCardProps {
   day: DiaryDay | undefined
   isLoading: boolean
   onAddFood: (mealId: string) => void
+  onEditEntry?: (entryId: string) => void
   selectedDate: string
 }
 
@@ -63,11 +64,12 @@ interface MealSectionProps {
   entries: DiaryEntry[]
   isFirst: boolean
   onAddFood: (mealId: string) => void
+  onEditEntry?: (entryId: string) => void
   onSkip: (mealId: string) => void
   onUnskip: (mealId: string) => void
 }
 
-function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood, onSkip, onUnskip }: MealSectionProps) {
+function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood, onEditEntry, onSkip, onUnskip }: MealSectionProps) {
   const isEmpty = entries.length === 0
 
   const sectionStyle: React.CSSProperties = {
@@ -176,6 +178,10 @@ function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood,
         return (
           <div
             key={entry.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onEditEntry?.(entry.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onEditEntry?.(entry.id) }}
             style={{
               display: 'grid',
               gridTemplateColumns: '60px 1fr auto auto auto',
@@ -184,6 +190,8 @@ function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood,
               alignItems: 'center',
               padding: '10px 0',
               borderBottom: isLast ? 0 : '1px dashed var(--border-soft)',
+              cursor: onEditEntry ? 'pointer' : undefined,
+              outline: 'none',
             }}
           >
             <span style={{
@@ -253,7 +261,7 @@ function MealSection({ mealId, mealName, isSkipped, entries, isFirst, onAddFood,
   )
 }
 
-export function DiaryCard({ day, isLoading, onAddFood, selectedDate }: DiaryCardProps) {
+export function DiaryCard({ day, isLoading, onAddFood, onEditEntry, selectedDate }: DiaryCardProps) {
   const skipMeal = useSkipMeal()
   const unskipMeal = useUnskipMeal()
   const { data: meals } = useMeals()
@@ -302,6 +310,7 @@ export function DiaryCard({ day, isLoading, onAddFood, selectedDate }: DiaryCard
           entries={meal.entries}
           isFirst={i === 0}
           onAddFood={onAddFood}
+          onEditEntry={onEditEntry}
           onSkip={handleSkip}
           onUnskip={handleUnskip}
         />
