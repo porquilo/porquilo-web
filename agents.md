@@ -24,6 +24,10 @@ web-app/  ← React frontend (see web-app/agents.md)
 - Self-hosters are first-class citizens — feature parity with any hosted tier
 - Open Food Facts contribution loop is a core part of the product identity
 
-## Single-user
+## Users & auth
 
-No multi-tenancy. No authentication layer in Phase 1. All data belongs to one user.
+Household-scale multi-user: separate diaries per person, one shared server instance.
+Real per-user accounts from the start — no shared server password. The first account
+created is the admin; subsequent accounts are created by the admin via the web dashboard.
+`foods`, `recipes`, and `meals` are global to the instance — visible to all users.
+All other data (`log_entries`, `body_metrics`, goals) is scoped per user.

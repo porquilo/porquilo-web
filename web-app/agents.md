@@ -1,7 +1,7 @@
 # Porquilo — Web App
 
-Vite + React 19 + TypeScript frontend. Talks to the FastAPI backend at `server/`. Single-user,
-no auth layer in Phase 1.
+Vite + React 19 + TypeScript frontend. Talks to the FastAPI backend at `server/`.
+Household-scale multi-user; bearer token auth required on all protected routes.
 
 ---
 
@@ -37,7 +37,9 @@ no auth layer in Phase 1.
 porquilo-web/web-app/
   src/
     api/              ← Raw fetch functions, one file per resource
-      client.ts       ← Base fetch wrapper (base URL, error handling)
+      client.ts       ← Base fetch wrapper (base URL, auth header, error handling)
+      auth.ts         ← login, logout, changePassword, exchangePairingCode
+      users.ts        ← admin: listUsers, createUser, deactivateUser, resetPassword, generatePairingCode
       diary.ts
       foods.ts
       entries.ts
@@ -64,7 +66,15 @@ porquilo-web/web-app/
       library/
       reports/
       settings/
+        SettingsView.tsx
+        AccountSection.tsx        ← self-service password change + logout (all users);
+                                     admin-only link to user management (web only)
+        UserManagementSection.tsx ← admin only: create, deactivate/reactivate, reset
+                                     password, generate per-user pairing QR (web only)
+        ProfileSection.tsx
     hooks/            ← TanStack Query hooks, one file per resource
+      useAuth.ts      ← current user query, login mutation, logout mutation
+      useUsers.ts     ← admin user management queries/mutations
       useDiary.ts
       useFoods.ts
       useEntries.ts
@@ -102,7 +112,17 @@ Rules:
 `src/api/client.ts` exports a base `apiFetch` function that:
 - Prepends `import.meta.env.VITE_API_BASE_URL` (default `http://localhost:8000`)
 - Sets `Content-Type: application/json` on POST/PUT
-- Throws an `ApiError` (with `status` and `message` fields) on non-2xx responses
+- Reads the bearer token from module-level state (set at login, cleared at logout) and
+  attaches `Authorization: Bearer <token>` on every request
+- On non-2xx, decodes the standard server error envelope
+  `{"error": {"code": "...", "message": "...", "details": {...}}}` and throws an
+  `ApiError` with `code`, `message`, and `details` fields — never throw on raw
+  `.statusText` or assume a plain string body
+- On 401, clears the stored token and triggers a re-login prompt
+
+The bearer token is held in module-level state in `client.ts`, not React context or
+props. `apiFetch` reads it directly. **Web token storage** (e.g. `localStorage`) is
+not yet decided — treat this as an open decision when implementing the login flow.
 
 Resource files import `apiFetch` and export typed async functions. They do not instantiate
 TanStack Query — that happens in hooks.
@@ -134,8 +154,8 @@ All API response shapes live in `src/types/api.ts` and must match the Pydantic r
 models in `server/` exactly. Define these before implementing any view:
 
 ```ts
-type Confidence = 'measured' | 'estimated' | 'calculated';
-type NutrientMap = Record<string, number>;  // keyed by NutrientDefinition.key
+type Confidence = 'measured' | 'estimated';  // two states only as of IA v0.4 — no 'calculated'
+type NutrientMap = Record<string, number>;   // keyed by NutrientDefinition.key
 
 interface DiaryEntry { ... }
 interface DiaryMeal  { ... }  // entries[], meal totals, is_skipped
@@ -143,6 +163,20 @@ interface DiaryDay   { ... }  // meals[], day totals, has_estimated_entries
 
 interface FoodResult { ... }  // id, name, brand, source, default_unit, nutrients, variants
 interface Meal       { id: string; name: string; sort_order: number; }
+
+// Auth & users
+interface User {
+  id: string;
+  username: string;
+  display_name: string;
+  role: 'admin' | 'member';
+  units: string;
+  timezone: string;
+}
+
+interface AuthToken { token: string; user: User; }
+
+interface ApiError { code: string; message: string; details: Record<string, unknown>; }
 ```
 
 UUIDs from the API are typed as `string`. Do not import the `uuid` package.
