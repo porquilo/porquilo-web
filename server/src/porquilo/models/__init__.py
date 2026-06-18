@@ -1,4 +1,5 @@
 from porquilo.models.app_setting import AppSetting
+from porquilo.models.auth_token import AuthToken
 from porquilo.models.body_metric import BodyMetric
 from porquilo.models.food import Food
 from porquilo.models.food_nutrient import FoodNutrient
@@ -16,10 +17,12 @@ from porquilo.models.recipe import Recipe
 from porquilo.models.recipe_ingredient import RecipeIngredient
 from porquilo.models.sync_log import SyncLog
 from porquilo.models.tracked_nutrient import TrackedNutrient
+from porquilo.models.user import User
 from porquilo.models.user_override import UserOverride
 
 __all__ = [
     "AppSetting",
+    "AuthToken",
     "BodyMetric",
     "Food",
     "FoodNutrient",
@@ -37,5 +40,6 @@ __all__ = [
     "RecipeIngredient",
     "SyncLog",
     "TrackedNutrient",
+    "User",
     "UserOverride",
 ]
