@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from porquilo.core.database import get_session
+from porquilo.core.deps import get_current_user
+from porquilo.models.user import User
 from porquilo.models import (
     Food,
     LogEntry,
@@ -61,13 +63,15 @@ class DiaryResponse(BaseModel):
 
 
 @router.get("/{date}", response_model=DiaryResponse)
-def get_diary(date: str, session: Session = Depends(get_session)) -> DiaryResponse:
+def get_diary(date: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> DiaryResponse:
     parsed_date = _parse_date(date)
     day_start = datetime(parsed_date.year, parsed_date.month, parsed_date.day)
     day_end = day_start + timedelta(days=1)
 
     meals = session.execute(select(Meal).order_by(Meal.sort_order)).scalars().all()
 
+    # meal_skips has no user_id column — skips are shared across all users for now.
+    # A future migration will add user_id to meal_skips and scope this query accordingly.
     skipped_meal_ids: set[uuid.UUID] = {
         row.meal_id
         for row in session.execute(
@@ -79,6 +83,7 @@ def get_diary(date: str, session: Session = Depends(get_session)) -> DiaryRespon
         select(LogEntry)
         .where(LogEntry.eaten_at >= day_start)
         .where(LogEntry.eaten_at < day_end)
+        .where(LogEntry.user_id == current_user.id)
         .order_by(LogEntry.meal_id, LogEntry.eaten_at)
     ).scalars().all()
 
@@ -164,7 +169,7 @@ def get_diary(date: str, session: Session = Depends(get_session)) -> DiaryRespon
 
 
 @router.post("/{date}/meals/{meal_id}/skip", status_code=201)
-def skip_meal(date: str, meal_id: UUID, session: Session = Depends(get_session)):
+def skip_meal(date: str, meal_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     parsed = _parse_date(date)
 
     meal = session.get(Meal, meal_id)
@@ -185,7 +190,7 @@ def skip_meal(date: str, meal_id: UUID, session: Session = Depends(get_session))
 
 
 @router.delete("/{date}/meals/{meal_id}/skip", status_code=204)
-def unskip_meal(date: str, meal_id: UUID, session: Session = Depends(get_session)):
+def unskip_meal(date: str, meal_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     parsed = _parse_date(date)
 
     skip = session.execute(

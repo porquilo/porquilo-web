@@ -10,7 +10,9 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from porquilo.core.database import get_session
+from porquilo.core.deps import require_admin
 from porquilo.models import FoodSource
+from porquilo.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ class SyncStatus(BaseModel):
 
 
 @router.post("/off", status_code=202)
-def trigger_off_sync(session: Session = Depends(get_session)) -> dict:
+def trigger_off_sync(session: Session = Depends(get_session), current_user: User = Depends(require_admin)) -> dict:
     off_source = session.execute(
         select(FoodSource).where(FoodSource.key == "open_food_facts")
     ).scalars().first()
@@ -56,7 +58,7 @@ def trigger_off_sync(session: Session = Depends(get_session)) -> dict:
 
 
 @router.get("/off/status", response_model=SyncStatus)
-def get_off_sync_status(session: Session = Depends(get_session)) -> SyncStatus:
+def get_off_sync_status(session: Session = Depends(get_session), current_user: User = Depends(require_admin)) -> SyncStatus:
     off_source = session.execute(
         select(FoodSource).where(FoodSource.key == "open_food_facts")
     ).scalars().first()
