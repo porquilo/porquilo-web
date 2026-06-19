@@ -6,7 +6,7 @@
 #     pytest server/tests/test_api_meals.py
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import sqlalchemy as sa
 
@@ -120,7 +120,7 @@ def _food_source_id(db_session, key="custom"):
 def _insert_food(db_session):
     fid = uuid.uuid4().hex
     src_id = _food_source_id(db_session)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     db_session.execute(
         sa.text(
             "INSERT INTO foods (id, name, food_source_id, default_unit, created_at, updated_at) "
@@ -136,7 +136,7 @@ def _insert_log_entry(db_session, meal_id, food_id):
     # Normalize to 32-char hex — SQLite stores sa.Uuid as hex (no hyphens)
     mid = uuid.UUID(meal_id).hex if "-" in meal_id else meal_id
     fid = uuid.UUID(food_id).hex if "-" in food_id else food_id
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     db_session.execute(
         sa.text(
             "INSERT INTO log_entries "

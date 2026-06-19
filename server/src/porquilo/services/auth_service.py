@@ -1,6 +1,6 @@
 import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import bcrypt
 from sqlmodel import Session, select
@@ -26,7 +26,7 @@ def create_token(user_id: uuid.UUID, session: Session) -> str:
     row = AuthToken(
         user_id=user_id,
         token=token,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     session.add(row)
     return token
@@ -57,7 +57,7 @@ def get_user_by_token(token: str, session: Session) -> User | None:
         select(AuthToken).where(AuthToken.token == token)
     ).scalars().first()
     if auth_row is not None:
-        auth_row.last_used_at = datetime.utcnow()
+        auth_row.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
         session.add(auth_row)
     return user
 
