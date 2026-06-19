@@ -18,6 +18,9 @@ dependencies = [
     "slowapi",
 ]
 
+[project.scripts]
+porquilo-server = "porquilo.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest",
