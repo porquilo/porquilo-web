@@ -71,9 +71,9 @@ def _mock_normalize_skipped(food_id, session):
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_names_returns_400_when_llm_not_configured(client):
+def test_normalize_names_returns_400_when_llm_not_configured(client, admin_headers):
     with patch("porquilo.routers.admin.is_llm_configured", return_value=False):
-        resp = client.post("/admin/normalize-names")
+        resp = client.post("/admin/normalize-names", headers=admin_headers)
 
     assert resp.status_code == 400
     assert resp.json() == {"error": "LLM not configured"}
@@ -84,7 +84,7 @@ def test_normalize_names_returns_400_when_llm_not_configured(client):
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_names_processes_pending_and_failed_usda_foods(client, db_session):
+def test_normalize_names_processes_pending_and_failed_usda_foods(client, db_session, admin_headers):
     usda_id = _usda_source_id(db_session)
     custom_id = _custom_source_id(db_session)
 
@@ -107,7 +107,7 @@ def test_normalize_names_processes_pending_and_failed_usda_foods(client, db_sess
 
     with patch("porquilo.routers.admin.is_llm_configured", return_value=True), \
          patch("porquilo.routers.admin.normalize_and_store", side_effect=mock_normalize):
-        resp = client.post("/admin/normalize-names")
+        resp = client.post("/admin/normalize-names", headers=admin_headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -125,7 +125,7 @@ def test_normalize_names_processes_pending_and_failed_usda_foods(client, db_sess
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_names_counts_reflect_final_status(client, db_session):
+def test_normalize_names_counts_reflect_final_status(client, db_session, admin_headers):
     usda_id = _usda_source_id(db_session)
 
     food_a = _make_food(db_session, source_id=usda_id, name="Food A", status="pending")
@@ -143,7 +143,7 @@ def test_normalize_names_counts_reflect_final_status(client, db_session):
 
     with patch("porquilo.routers.admin.is_llm_configured", return_value=True), \
          patch("porquilo.routers.admin.normalize_and_store", side_effect=mock_normalize):
-        resp = client.post("/admin/normalize-names")
+        resp = client.post("/admin/normalize-names", headers=admin_headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -158,7 +158,7 @@ def test_normalize_names_counts_reflect_final_status(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_names_second_run_is_noop(client, db_session):
+def test_normalize_names_second_run_is_noop(client, db_session, admin_headers):
     """Use real normalize_and_store with a mocked LLM call so status is
     persisted correctly, then verify the second POST is a no-op."""
     usda_id = _usda_source_id(db_session)
@@ -167,8 +167,8 @@ def test_normalize_names_second_run_is_noop(client, db_session):
     with patch("porquilo.routers.admin.is_llm_configured", return_value=True), \
          patch("porquilo.services.name_normalization.is_llm_configured", return_value=True), \
          patch("porquilo.services.name_normalization.normalize_food_name", return_value="Apple"):
-        resp1 = client.post("/admin/normalize-names")
-        resp2 = client.post("/admin/normalize-names")
+        resp1 = client.post("/admin/normalize-names", headers=admin_headers)
+        resp2 = client.post("/admin/normalize-names", headers=admin_headers)
 
     assert resp1.status_code == 200
     assert resp1.json()["processed"] == 1
@@ -185,7 +185,7 @@ def test_normalize_names_second_run_is_noop(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_names_sleeps_between_batches_only(client, db_session):
+def test_normalize_names_sleeps_between_batches_only(client, db_session, admin_headers):
     usda_id = _usda_source_id(db_session)
 
     # Create 21 foods — exactly one batch of 20 + one of 1 → one sleep between them
@@ -198,7 +198,7 @@ def test_normalize_names_sleeps_between_batches_only(client, db_session):
     with patch("porquilo.routers.admin.is_llm_configured", return_value=True), \
          patch("porquilo.routers.admin.normalize_and_store", side_effect=mock_normalize), \
          patch("porquilo.routers.admin.time") as mock_time:
-        resp = client.post("/admin/normalize-names")
+        resp = client.post("/admin/normalize-names", headers=admin_headers)
 
     assert resp.status_code == 200
     assert resp.json()["processed"] == 21
@@ -211,7 +211,7 @@ def test_normalize_names_sleeps_between_batches_only(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_names_no_sleep_for_single_batch(client, db_session):
+def test_normalize_names_no_sleep_for_single_batch(client, db_session, admin_headers):
     usda_id = _usda_source_id(db_session)
     _make_food(db_session, source_id=usda_id, name="Apple", status="pending")
 
@@ -221,7 +221,7 @@ def test_normalize_names_no_sleep_for_single_batch(client, db_session):
     with patch("porquilo.routers.admin.is_llm_configured", return_value=True), \
          patch("porquilo.routers.admin.normalize_and_store", side_effect=mock_normalize), \
          patch("porquilo.routers.admin.time") as mock_time:
-        resp = client.post("/admin/normalize-names")
+        resp = client.post("/admin/normalize-names", headers=admin_headers)
 
     assert resp.status_code == 200
     mock_time.sleep.assert_not_called()
@@ -232,13 +232,13 @@ def test_normalize_names_no_sleep_for_single_batch(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_names_empty_when_nothing_to_process(client, db_session):
+def test_normalize_names_empty_when_nothing_to_process(client, db_session, admin_headers):
     usda_id = _usda_source_id(db_session)
     _make_food(db_session, source_id=usda_id, name="Already done", status="done")
 
     with patch("porquilo.routers.admin.is_llm_configured", return_value=True), \
          patch("porquilo.routers.admin.normalize_and_store") as mock_normalize:
-        resp = client.post("/admin/normalize-names")
+        resp = client.post("/admin/normalize-names", headers=admin_headers)
 
     assert resp.status_code == 200
     data = resp.json()

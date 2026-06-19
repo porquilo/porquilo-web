@@ -6,7 +6,9 @@ from pydantic import BaseModel
 from sqlmodel import Session, func, select
 
 from porquilo.core.database import get_session
+from porquilo.core.deps import get_current_user
 from porquilo.models import LogEntry, Meal
+from porquilo.models.user import User
 
 router = APIRouter(prefix="/api/meals", tags=["meals"])
 
@@ -29,13 +31,13 @@ class MealPatch(BaseModel):
 
 
 @router.get("", response_model=list[MealOut])
-def list_meals(session: Session = Depends(get_session)) -> list[MealOut]:
+def list_meals(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> list[MealOut]:
     meals = session.execute(select(Meal).order_by(Meal.sort_order)).scalars().all()
     return [MealOut(id=m.id, name=m.name, sort_order=m.sort_order, is_default=m.is_default) for m in meals]
 
 
 @router.post("", response_model=MealOut, status_code=201)
-def create_meal(body: MealCreate, session: Session = Depends(get_session)):
+def create_meal(body: MealCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     sort_order = body.sort_order
     if sort_order is None:
         max_order = session.execute(select(func.max(Meal.sort_order))).scalar_one_or_none()
@@ -49,7 +51,7 @@ def create_meal(body: MealCreate, session: Session = Depends(get_session)):
 
 
 @router.delete("/{meal_id}", status_code=204)
-def delete_meal(meal_id: UUID, session: Session = Depends(get_session)):
+def delete_meal(meal_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     meal = session.get(Meal, meal_id)
     if meal is None:
         raise HTTPException(status_code=404, detail="Meal not found")
@@ -68,7 +70,7 @@ def delete_meal(meal_id: UUID, session: Session = Depends(get_session)):
 
 
 @router.patch("/{meal_id}", response_model=MealOut)
-def update_meal(meal_id: UUID, body: MealPatch, session: Session = Depends(get_session)):
+def update_meal(meal_id: UUID, body: MealPatch, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     meal = session.get(Meal, meal_id)
     if meal is None:
         raise HTTPException(status_code=404, detail="Meal not found")

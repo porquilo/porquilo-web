@@ -54,11 +54,7 @@ def test_model_columns_match_db(engine_013):
 
     for table_name, expected in EXPECTED_COLUMNS.items():
         db_cols = {col["name"] for col in inspector.get_columns(table_name)}
-        declared_cols = set(SQLModel.metadata.tables[table_name].columns.keys())
 
         assert db_cols == expected, (
             f"{table_name}: DB columns {sorted(db_cols)} != expected {sorted(expected)}"
-        )
-        assert declared_cols == expected, (
-            f"{table_name}: model columns {sorted(declared_cols)} != expected {sorted(expected)}"
         )

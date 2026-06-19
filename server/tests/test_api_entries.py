@@ -85,11 +85,11 @@ def _payload(food_id_hex: str, meal_id: str = _BREAKFAST_ID, **overrides) -> dic
 # ---------------------------------------------------------------------------
 
 
-def test_create_entry_returns_201(client, db_session):
+def test_create_entry_returns_201(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
 
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
 
     assert resp.status_code == 201
     data = resp.json()
@@ -100,23 +100,23 @@ def test_create_entry_returns_201(client, db_session):
     assert "coverage" in data["nutrients"]["calories_kcal"]
 
 
-def test_nutrients_scaled_correctly(client, db_session):
+def test_nutrients_scaled_correctly(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Rice")
     _add_nutrient(db_session, fid, "calories_kcal", 130.0)
 
-    resp = client.post("/api/entries", json=_payload(fid, weight_g="100.0"))
+    resp = client.post("/api/entries", json=_payload(fid, weight_g="100.0"), headers=auth_headers)
 
     assert resp.status_code == 201
     assert Decimal(resp.json()["nutrients"]["calories_kcal"]["value"]) == Decimal("130.0")
 
 
-def test_all_nutrient_keys_in_response(client, db_session):
+def test_all_nutrient_keys_in_response(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Multi-Nutrient Food")
     _add_nutrient(db_session, fid, "calories_kcal", 200.0)
     _add_nutrient(db_session, fid, "protein_g", 15.0)
     _add_nutrient(db_session, fid, "fat_g", 8.0)
 
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
 
     assert resp.status_code == 201
     nutrients = resp.json()["nutrients"]
@@ -125,11 +125,11 @@ def test_all_nutrient_keys_in_response(client, db_session):
     assert "fat_g" in nutrients
 
 
-def test_logged_at_set_server_side(client, db_session):
+def test_logged_at_set_server_side(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
 
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
 
     assert resp.status_code == 201
     entry = db_session.get(LogEntry, uuid.UUID(resp.json()["id"]))
@@ -137,21 +137,21 @@ def test_logged_at_set_server_side(client, db_session):
     assert entry.logged_at is not None
 
 
-def test_logged_at_not_in_response(client, db_session):
+def test_logged_at_not_in_response(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
 
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
 
     assert resp.status_code == 201
     assert "logged_at" not in resp.json()
 
 
-def test_eaten_at_from_client(client, db_session):
+def test_eaten_at_from_client(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
 
-    resp = client.post("/api/entries", json=_payload(fid, eaten_at="2026-06-01T12:30:00"))
+    resp = client.post("/api/entries", json=_payload(fid, eaten_at="2026-06-01T12:30:00"), headers=auth_headers)
 
     assert resp.status_code == 201
     entry = db_session.get(LogEntry, uuid.UUID(resp.json()["id"]))
@@ -160,12 +160,12 @@ def test_eaten_at_from_client(client, db_session):
     assert entry.eaten_at.minute == 30
 
 
-def test_log_entry_nutrient_rows_created(client, db_session):
+def test_log_entry_nutrient_rows_created(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Two-Nutrient Food")
     _add_nutrient(db_session, fid, "calories_kcal", 100.0)
     _add_nutrient(db_session, fid, "protein_g", 20.0)
 
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
 
     assert resp.status_code == 201
     entry_id = uuid.UUID(resp.json()["id"])
@@ -175,11 +175,11 @@ def test_log_entry_nutrient_rows_created(client, db_session):
     assert len(rows) == 2
 
 
-def test_food_id_set_recipe_id_null(client, db_session):
+def test_food_id_set_recipe_id_null(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
 
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
 
     assert resp.status_code == 201
     entry = db_session.get(LogEntry, uuid.UUID(resp.json()["id"]))
@@ -188,21 +188,21 @@ def test_food_id_set_recipe_id_null(client, db_session):
     assert entry.recipe_id is None
 
 
-def test_invalid_food_id_returns_422(client):
+def test_invalid_food_id_returns_422(client, auth_headers):
     payload = _payload(uuid.uuid4().hex)
-    resp = client.post("/api/entries", json=payload)
+    resp = client.post("/api/entries", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_invalid_meal_id_returns_422(client, db_session):
+def test_invalid_meal_id_returns_422(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
 
-    resp = client.post("/api/entries", json=_payload(fid, meal_id=str(uuid.uuid4())))
+    resp = client.post("/api/entries", json=_payload(fid, meal_id=str(uuid.uuid4())), headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_integer_food_id_returns_422(client):
+def test_integer_food_id_returns_422(client, auth_headers):
     payload = {
         "food_id": 12345,
         "meal_id": _BREAKFAST_ID,
@@ -211,11 +211,11 @@ def test_integer_food_id_returns_422(client):
         "weight_source": "scale",
         "input_method": "manual",
     }
-    resp = client.post("/api/entries", json=payload)
+    resp = client.post("/api/entries", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_integer_meal_id_returns_422(client, db_session):
+def test_integer_meal_id_returns_422(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     payload = {
         "food_id": str(uuid.UUID(fid)),
@@ -225,17 +225,17 @@ def test_integer_meal_id_returns_422(client, db_session):
         "weight_source": "scale",
         "input_method": "manual",
     }
-    resp = client.post("/api/entries", json=payload)
+    resp = client.post("/api/entries", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_all_inserts_use_single_session(client, db_session):
+def test_all_inserts_use_single_session(client, db_session, auth_headers):
     """Entry and its nutrients are visible together — no partial commit."""
     fid = _insert_food(db_session, name="Single Session Food")
     _add_nutrient(db_session, fid, "calories_kcal", 100.0)
     _add_nutrient(db_session, fid, "protein_g", 20.0)
 
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
 
     assert resp.status_code == 201
     entry_id = uuid.UUID(resp.json()["id"])
@@ -252,8 +252,8 @@ def test_all_inserts_use_single_session(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_batch_returns_501(client):
-    resp = client.post("/api/entries/batch", json=[])
+def test_batch_returns_501(client, auth_headers):
+    resp = client.post("/api/entries/batch", json=[], headers=auth_headers)
     assert resp.status_code == 501
 
 
@@ -262,37 +262,37 @@ def test_batch_returns_501(client):
 # ---------------------------------------------------------------------------
 
 
-def test_get_entry_returns_200(client, db_session):
+def test_get_entry_returns_200(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Chicken Breast")
     _add_nutrient(db_session, fid, "protein_g", 31.0)
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
     entry_id = resp.json()["id"]
 
-    resp = client.get(f"/api/entries/{entry_id}")
+    resp = client.get(f"/api/entries/{entry_id}", headers=auth_headers)
 
     assert resp.status_code == 200
     data = resp.json()
     assert data["id"] == entry_id
 
 
-def test_get_entry_food_name(client, db_session):
+def test_get_entry_food_name(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Brown Rice")
     _add_nutrient(db_session, fid)
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
     entry_id = resp.json()["id"]
 
-    data = client.get(f"/api/entries/{entry_id}").json()
+    data = client.get(f"/api/entries/{entry_id}", headers=auth_headers).json()
 
     assert data["food_name"] == "Brown Rice"
 
 
-def test_get_entry_nutrients_keyed_by_definition_key(client, db_session):
+def test_get_entry_nutrients_keyed_by_definition_key(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid, "protein_g", 25.0)
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
     entry_id = resp.json()["id"]
 
-    data = client.get(f"/api/entries/{entry_id}").json()
+    data = client.get(f"/api/entries/{entry_id}", headers=auth_headers).json()
 
     nutrients = data["nutrients"]
     assert "protein_g" in nutrients
@@ -304,21 +304,33 @@ def test_get_entry_nutrients_keyed_by_definition_key(client, db_session):
             pass
 
 
-def test_get_entry_logged_at_present_and_distinct_from_eaten_at(client, db_session):
+def test_get_entry_logged_at_present_and_distinct_from_eaten_at(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
-    resp = client.post("/api/entries", json=_payload(fid, eaten_at="2026-06-01T08:00:00"))
+    resp = client.post("/api/entries", json=_payload(fid, eaten_at="2026-06-01T08:00:00"), headers=auth_headers)
     entry_id = resp.json()["id"]
 
-    data = client.get(f"/api/entries/{entry_id}").json()
+    data = client.get(f"/api/entries/{entry_id}", headers=auth_headers).json()
 
     assert "logged_at" in data
     assert data["logged_at"] is not None
     assert data["eaten_at"] != data["logged_at"]
 
 
-def test_get_entry_unknown_id_returns_404(client):
-    resp = client.get(f"/api/entries/{uuid.uuid4()}")
+def test_get_entry_unknown_id_returns_404(client, auth_headers):
+    resp = client.get(f"/api/entries/{uuid.uuid4()}", headers=auth_headers)
+    assert resp.status_code == 404
+
+
+def test_get_entry_other_user_returns_404(client, db_session, auth_headers, admin_headers):
+    """An entry created by one user is not visible to another user."""
+    fid = _insert_food(db_session)
+    _add_nutrient(db_session, fid)
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
+    assert resp.status_code == 201
+    entry_id = resp.json()["id"]
+
+    resp = client.get(f"/api/entries/{entry_id}", headers=admin_headers)
     assert resp.status_code == 404
 
 
@@ -330,24 +342,24 @@ def test_get_entry_unknown_id_returns_404(client):
 _LUNCH_ID = "f3ed9baf-01b3-4564-9c2b-095acc2245e7"
 
 
-def _create_entry(client, db_session, *, nutrient_key="calories_kcal", value=200.0, **payload_overrides):
+def _create_entry(client, db_session, auth_headers, *, nutrient_key="calories_kcal", value=200.0, **payload_overrides):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid, nutrient_key, value)
-    resp = client.post("/api/entries", json=_payload(fid, **payload_overrides))
+    resp = client.post("/api/entries", json=_payload(fid, **payload_overrides), headers=auth_headers)
     assert resp.status_code == 201
     return fid, resp.json()["id"]
 
 
-def test_patch_meal_id_only(client, db_session):
+def test_patch_meal_id_only(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
     entry_id = resp.json()["id"]
     old_nutrients = db_session.execute(
         select(LogEntryNutrient).where(LogEntryNutrient.log_entry_id == uuid.UUID(entry_id))
     ).scalars().all()
 
-    resp = client.patch(f"/api/entries/{entry_id}", json={"meal_id": _LUNCH_ID})
+    resp = client.patch(f"/api/entries/{entry_id}", json={"meal_id": _LUNCH_ID}, headers=auth_headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -358,13 +370,13 @@ def test_patch_meal_id_only(client, db_session):
     assert len(new_nutrients) == len(old_nutrients)
 
 
-def test_patch_eaten_at_only(client, db_session):
+def test_patch_eaten_at_only(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
-    resp = client.post("/api/entries", json=_payload(fid, eaten_at="2026-06-01T08:00:00"))
+    resp = client.post("/api/entries", json=_payload(fid, eaten_at="2026-06-01T08:00:00"), headers=auth_headers)
     entry_id = resp.json()["id"]
 
-    resp = client.patch(f"/api/entries/{entry_id}", json={"eaten_at": "2026-06-01T20:00:00"})
+    resp = client.patch(f"/api/entries/{entry_id}", json={"eaten_at": "2026-06-01T20:00:00"}, headers=auth_headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -375,13 +387,13 @@ def test_patch_eaten_at_only(client, db_session):
     assert len(new_nutrients) == 1
 
 
-def test_patch_weight_g_recomputes_nutrients(client, db_session):
+def test_patch_weight_g_recomputes_nutrients(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid, "calories_kcal", 100.0)
-    resp = client.post("/api/entries", json=_payload(fid, weight_g="100.0"))
+    resp = client.post("/api/entries", json=_payload(fid, weight_g="100.0"), headers=auth_headers)
     entry_id = resp.json()["id"]
 
-    resp = client.patch(f"/api/entries/{entry_id}", json={"weight_g": "200.0"})
+    resp = client.patch(f"/api/entries/{entry_id}", json={"weight_g": "200.0"}, headers=auth_headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -389,14 +401,14 @@ def test_patch_weight_g_recomputes_nutrients(client, db_session):
     assert Decimal(data["weight_g"]) == Decimal("200.0")
 
 
-def test_patch_weight_source_recomputes_and_updates_confidence(client, db_session):
+def test_patch_weight_source_recomputes_and_updates_confidence(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid, "calories_kcal", 100.0)
-    resp = client.post("/api/entries", json=_payload(fid, weight_source="scale"))
+    resp = client.post("/api/entries", json=_payload(fid, weight_source="scale"), headers=auth_headers)
     entry_id = resp.json()["id"]
-    assert client.get(f"/api/entries/{entry_id}").json()["weight_confidence"] == "measured"
+    assert client.get(f"/api/entries/{entry_id}", headers=auth_headers).json()["weight_confidence"] == "measured"
 
-    resp = client.patch(f"/api/entries/{entry_id}", json={"weight_source": "estimated"})
+    resp = client.patch(f"/api/entries/{entry_id}", json={"weight_source": "estimated"}, headers=auth_headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -404,11 +416,11 @@ def test_patch_weight_source_recomputes_and_updates_confidence(client, db_sessio
     assert data["weight_confidence"] == "estimated"
 
 
-def test_patch_old_nutrients_deleted_new_inserted(client, db_session):
+def test_patch_old_nutrients_deleted_new_inserted(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid, "calories_kcal", 100.0)
     _add_nutrient(db_session, fid, "protein_g", 20.0)
-    resp = client.post("/api/entries", json=_payload(fid, weight_g="100.0"))
+    resp = client.post("/api/entries", json=_payload(fid, weight_g="100.0"), headers=auth_headers)
     entry_id = resp.json()["id"]
     old_ids = {
         row.id for row in db_session.execute(
@@ -417,7 +429,7 @@ def test_patch_old_nutrients_deleted_new_inserted(client, db_session):
     }
     assert len(old_ids) == 2
 
-    client.patch(f"/api/entries/{entry_id}", json={"weight_g": "50.0"})
+    client.patch(f"/api/entries/{entry_id}", json={"weight_g": "50.0"}, headers=auth_headers)
 
     new_rows = db_session.execute(
         select(LogEntryNutrient).where(LogEntryNutrient.log_entry_id == uuid.UUID(entry_id))
@@ -427,29 +439,40 @@ def test_patch_old_nutrients_deleted_new_inserted(client, db_session):
     assert old_ids.isdisjoint(new_ids)
 
 
-def test_patch_unknown_meal_id_returns_422(client, db_session):
+def test_patch_unknown_meal_id_returns_422(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
     entry_id = resp.json()["id"]
 
-    resp = client.patch(f"/api/entries/{entry_id}", json={"meal_id": str(uuid.uuid4())})
+    resp = client.patch(f"/api/entries/{entry_id}", json={"meal_id": str(uuid.uuid4())}, headers=auth_headers)
 
     assert resp.status_code == 422
 
 
-def test_patch_unknown_entry_id_returns_404(client):
-    resp = client.patch(f"/api/entries/{uuid.uuid4()}", json={"eaten_at": "2026-06-01T12:00:00"})
+def test_patch_unknown_entry_id_returns_404(client, auth_headers):
+    resp = client.patch(f"/api/entries/{uuid.uuid4()}", json={"eaten_at": "2026-06-01T12:00:00"}, headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_patch_response_is_entry_detail_out(client, db_session):
-    fid = _insert_food(db_session, name="Oats")
-    _add_nutrient(db_session, fid, "calories_kcal", 380.0)
-    resp = client.post("/api/entries", json=_payload(fid, weight_g="50.0"))
+def test_patch_other_user_entry_returns_404(client, db_session, auth_headers, admin_headers):
+    """PATCH for an entry owned by a different user returns 404."""
+    fid = _insert_food(db_session)
+    _add_nutrient(db_session, fid)
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
     entry_id = resp.json()["id"]
 
-    data = client.patch(f"/api/entries/{entry_id}", json={"weight_g": "75.0"}).json()
+    resp = client.patch(f"/api/entries/{entry_id}", json={"eaten_at": "2026-06-01T12:00:00"}, headers=admin_headers)
+    assert resp.status_code == 404
+
+
+def test_patch_response_is_entry_detail_out(client, db_session, auth_headers):
+    fid = _insert_food(db_session, name="Oats")
+    _add_nutrient(db_session, fid, "calories_kcal", 380.0)
+    resp = client.post("/api/entries", json=_payload(fid, weight_g="50.0"), headers=auth_headers)
+    entry_id = resp.json()["id"]
+
+    data = client.patch(f"/api/entries/{entry_id}", json={"weight_g": "75.0"}, headers=auth_headers).json()
 
     for field in ("id", "food_id", "food_name", "meal_id", "eaten_at", "logged_at",
                   "weight_g", "weight_source", "weight_confidence", "nutrients"):
@@ -458,23 +481,23 @@ def test_patch_response_is_entry_detail_out(client, db_session):
     assert Decimal(data["nutrients"]["calories_kcal"]["value"]) == Decimal("285.0")
 
 
-def test_patch_logged_at_unchanged(client, db_session):
+def test_patch_logged_at_unchanged(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid)
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
     entry_id = resp.json()["id"]
-    original_logged_at = client.get(f"/api/entries/{entry_id}").json()["logged_at"]
+    original_logged_at = client.get(f"/api/entries/{entry_id}", headers=auth_headers).json()["logged_at"]
 
-    data = client.patch(f"/api/entries/{entry_id}", json={"eaten_at": "2026-06-02T09:00:00"}).json()
+    data = client.patch(f"/api/entries/{entry_id}", json={"eaten_at": "2026-06-02T09:00:00"}, headers=auth_headers).json()
 
     assert data["logged_at"] == original_logged_at
 
 
-def test_patch_no_weight_fields_nutrients_unchanged(client, db_session):
+def test_patch_no_weight_fields_nutrients_unchanged(client, db_session, auth_headers):
     fid = _insert_food(db_session)
     _add_nutrient(db_session, fid, "calories_kcal", 100.0)
     _add_nutrient(db_session, fid, "protein_g", 10.0)
-    resp = client.post("/api/entries", json=_payload(fid))
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
     entry_id = resp.json()["id"]
     before_ids = {
         row.id for row in db_session.execute(
@@ -482,7 +505,7 @@ def test_patch_no_weight_fields_nutrients_unchanged(client, db_session):
         ).scalars().all()
     }
 
-    client.patch(f"/api/entries/{entry_id}", json={"eaten_at": "2026-06-03T10:00:00"})
+    client.patch(f"/api/entries/{entry_id}", json={"eaten_at": "2026-06-03T10:00:00"}, headers=auth_headers)
 
     after_ids = {
         row.id for row in db_session.execute(
@@ -490,3 +513,29 @@ def test_patch_no_weight_fields_nutrients_unchanged(client, db_session):
         ).scalars().all()
     }
     assert before_ids == after_ids
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/entries/{entry_id}
+# ---------------------------------------------------------------------------
+
+
+def test_delete_entry_returns_204(client, db_session, auth_headers):
+    fid = _insert_food(db_session)
+    _add_nutrient(db_session, fid)
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
+    entry_id = resp.json()["id"]
+
+    resp = client.delete(f"/api/entries/{entry_id}", headers=auth_headers)
+    assert resp.status_code == 204
+
+
+def test_delete_other_user_entry_returns_404(client, db_session, auth_headers, admin_headers):
+    """DELETE for an entry owned by a different user returns 404."""
+    fid = _insert_food(db_session)
+    _add_nutrient(db_session, fid)
+    resp = client.post("/api/entries", json=_payload(fid), headers=auth_headers)
+    entry_id = resp.json()["id"]
+
+    resp = client.delete(f"/api/entries/{entry_id}", headers=admin_headers)
+    assert resp.status_code == 404

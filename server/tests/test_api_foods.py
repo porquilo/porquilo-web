@@ -103,36 +103,36 @@ def _add_variant(
 # ---------------------------------------------------------------------------
 
 
-def test_partial_name_match(client, db_session):
+def test_partial_name_match(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Apple Juice")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "apple"})
+    resp = client.get("/api/foods", params={"q": "apple"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()["items"]
     assert len(data) == 1
     assert data[0]["name"] == "Apple Juice"
 
 
-def test_case_insensitive_name(client, db_session):
+def test_case_insensitive_name(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Broccoli Florets")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "BROCCOLI"})
+    resp = client.get("/api/foods", params={"q": "BROCCOLI"}, headers=auth_headers)
     assert resp.status_code == 200
     assert any(f["name"] == "Broccoli Florets" for f in resp.json()["items"])
 
 
-def test_brand_match(client, db_session):
+def test_brand_match(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Orange Juice", brand="Tropicana")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "tropicana"})
+    resp = client.get("/api/foods", params={"q": "tropicana"}, headers=auth_headers)
     assert resp.status_code == 200
     assert any(f["name"] == "Orange Juice" for f in resp.json()["items"])
 
 
-def test_source_filter_matched_against_key(client, db_session):
+def test_source_filter_matched_against_key(client, db_session, auth_headers):
     """source param filters against food_sources.key, not a column on foods."""
     fid_c = _insert_food(db_session, name="Custom Salad", source_key="custom")
     _add_nutrient(db_session, fid_c)
@@ -140,7 +140,7 @@ def test_source_filter_matched_against_key(client, db_session):
     fid_u = _insert_food(db_session, name="USDA Salad", source_key="usda")
     _add_nutrient(db_session, fid_u)
 
-    resp = client.get("/api/foods", params={"q": "salad", "source": "custom"})
+    resp = client.get("/api/foods", params={"q": "salad", "source": "custom"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()["items"]
     assert len(data) == 1
@@ -148,11 +148,11 @@ def test_source_filter_matched_against_key(client, db_session):
     assert data[0]["name"] == "Custom Salad"
 
 
-def test_source_filter_returns_key_string_not_uuid(client, db_session):
+def test_source_filter_returns_key_string_not_uuid(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="USDA Chicken", source_key="usda")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "chicken", "source": "usda"})
+    resp = client.get("/api/foods", params={"q": "chicken", "source": "usda"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()["items"]
     assert len(data) == 1
@@ -165,43 +165,43 @@ def test_source_filter_returns_key_string_not_uuid(client, db_session):
         pass
 
 
-def test_short_q_returns_browse_mode(client, db_session):
+def test_short_q_returns_browse_mode(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Avocado")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "a"})
+    resp = client.get("/api/foods", params={"q": "a"}, headers=auth_headers)
     assert resp.status_code == 200
     assert "items" in resp.json()
 
 
-def test_missing_q_returns_all_foods(client, db_session):
+def test_missing_q_returns_all_foods(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Zucchini")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods")
+    resp = client.get("/api/foods", headers=auth_headers)
     assert resp.status_code == 200
     assert "items" in resp.json()
     assert any(f["name"] == "Zucchini" for f in resp.json()["items"])
 
 
-def test_browse_alphabetical_order(client, db_session):
+def test_browse_alphabetical_order(client, db_session, auth_headers):
     for name in ("Zucchini", "Apple", "Mango"):
         fid = _insert_food(db_session, name=name)
         _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods")
+    resp = client.get("/api/foods", headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert names.index("Apple") < names.index("Mango") < names.index("Zucchini")
 
 
-def test_browse_source_filter(client, db_session):
+def test_browse_source_filter(client, db_session, auth_headers):
     fid_c = _insert_food(db_session, name="Custom Oats", source_key="custom")
     _add_nutrient(db_session, fid_c)
     fid_u = _insert_food(db_session, name="USDA Oats", source_key="usda")
     _add_nutrient(db_session, fid_u)
 
-    resp = client.get("/api/foods", params={"source": "custom"})
+    resp = client.get("/api/foods", params={"source": "custom"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()["items"]
     assert all(f["source"] == "custom" for f in data)
@@ -209,13 +209,13 @@ def test_browse_source_filter(client, db_session):
     assert not any(f["name"] == "USDA Oats" for f in data)
 
 
-def test_offset_pagination(client, db_session):
+def test_offset_pagination(client, db_session, auth_headers):
     for i in range(5):
         fid = _insert_food(db_session, name=f"Page Food {i:02d}")
         _add_nutrient(db_session, fid)
 
-    first = client.get("/api/foods", params={"limit": 2, "offset": 0}).json()["items"]
-    second = client.get("/api/foods", params={"limit": 2, "offset": 2}).json()["items"]
+    first = client.get("/api/foods", params={"limit": 2, "offset": 0}, headers=auth_headers).json()["items"]
+    second = client.get("/api/foods", params={"limit": 2, "offset": 2}, headers=auth_headers).json()["items"]
 
     assert len(first) == 2
     assert len(second) == 2
@@ -224,51 +224,51 @@ def test_offset_pagination(client, db_session):
     assert first_ids.isdisjoint(second_ids)
 
 
-def test_foods_without_nutrients_excluded(client, db_session):
+def test_foods_without_nutrients_excluded(client, db_session, auth_headers):
     fid_with = _insert_food(db_session, name="Banana")
     _add_nutrient(db_session, fid_with)
 
     _insert_food(db_session, name="Banana Split")  # no nutrients
 
-    resp = client.get("/api/foods", params={"q": "banana"})
+    resp = client.get("/api/foods", params={"q": "banana"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()["items"]
     assert len(data) == 1
     assert data[0]["name"] == "Banana"
 
 
-def test_limit_respected(client, db_session):
+def test_limit_respected(client, db_session, auth_headers):
     for i in range(5):
         fid = _insert_food(db_session, name=f"Lime Product {i}")
         _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "lime", "limit": 3})
+    resp = client.get("/api/foods", params={"q": "lime", "limit": 3}, headers=auth_headers)
     assert resp.status_code == 200
     assert len(resp.json()["items"]) == 3
 
 
-def test_limit_default_20(client, db_session):
+def test_limit_default_20(client, db_session, auth_headers):
     for i in range(25):
         fid = _insert_food(db_session, name=f"Grape Item {i:02d}")
         _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "grape"})
+    resp = client.get("/api/foods", params={"q": "grape"}, headers=auth_headers)
     assert resp.status_code == 200
     assert len(resp.json()["items"]) == 20
 
 
-def test_limit_max_100_enforced(client):
-    resp = client.get("/api/foods", params={"q": "test", "limit": 101})
+def test_limit_max_100_enforced(client, auth_headers):
+    resp = client.get("/api/foods", params={"q": "test", "limit": 101}, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_response_model_shape(client, db_session):
+def test_response_model_shape(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Brown Rice", brand="Generic")
     _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=360.0)
     _add_nutrient(db_session, fid, nutrient_key="protein_g", value=7.5)
     _add_variant(db_session, fid, name="1 cup cooked", amount=200.0, unit="g")
 
-    resp = client.get("/api/foods", params={"q": "brown rice"})
+    resp = client.get("/api/foods", params={"q": "brown rice"}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert "items" in body and "total" in body
@@ -294,20 +294,20 @@ def test_response_model_shape(client, db_session):
     assert v["unit"] == "g"
 
 
-def test_ordering_exact_startswith_contains(client, db_session):
+def test_ordering_exact_startswith_contains(client, db_session, auth_headers):
     for name in ("mango smoothie", "mango", "tropical mango blend"):
         fid = _insert_food(db_session, name=name)
         _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "mango"})
+    resp = client.get("/api/foods", params={"q": "mango"}, headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert names.index("mango") < names.index("mango smoothie")
     assert names.index("mango smoothie") < names.index("tropical mango blend")
 
 
-def test_no_results_returns_empty_list(client, db_session):
-    resp = client.get("/api/foods", params={"q": "zzz_no_such_food"})
+def test_no_results_returns_empty_list(client, db_session, auth_headers):
+    resp = client.get("/api/foods", params={"q": "zzz_no_such_food"}, headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json() == {"items": [], "total": 0}
 
@@ -317,11 +317,11 @@ def test_no_results_returns_empty_list(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_response_shape_is_envelope(client, db_session):
+def test_response_shape_is_envelope(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Envelope Food")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods")
+    resp = client.get("/api/foods", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert set(body.keys()) == {"items", "total"}
@@ -329,19 +329,19 @@ def test_response_shape_is_envelope(client, db_session):
     assert isinstance(body["total"], int)
 
 
-def test_total_reflects_full_count(client, db_session):
+def test_total_reflects_full_count(client, db_session, auth_headers):
     for i in range(60):
         fid = _insert_food(db_session, name=f"CountFood {i:02d}")
         _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "CountFood", "limit": 25, "offset": 25})
+    resp = client.get("/api/foods", params={"q": "CountFood", "limit": 25, "offset": 25}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 60
     assert len(body["items"]) == 25
 
 
-def test_total_with_source_filter(client, db_session):
+def test_total_with_source_filter(client, db_session, auth_headers):
     for i in range(5):
         fid = _insert_food(db_session, name=f"SrcGrain{i}Custom", source_key="custom")
         _add_nutrient(db_session, fid)
@@ -349,33 +349,33 @@ def test_total_with_source_filter(client, db_session):
         fid = _insert_food(db_session, name=f"SrcGrain{i}Usda", source_key="usda")
         _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "SrcGrain", "source": "custom"})
+    resp = client.get("/api/foods", params={"q": "SrcGrain", "source": "custom"}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 5
     assert all(f["source"] == "custom" for f in body["items"])
 
 
-def test_total_with_q_filter(client, db_session):
+def test_total_with_q_filter(client, db_session, auth_headers):
     for i in range(4):
         fid = _insert_food(db_session, name=f"Kale Chip {i}")
         _add_nutrient(db_session, fid)
     fid = _insert_food(db_session, name="Spinach")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "kale", "limit": 2})
+    resp = client.get("/api/foods", params={"q": "kale", "limit": 2}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 4
     assert len(body["items"]) == 2
 
 
-def test_sort_by_name_desc(client, db_session):
+def test_sort_by_name_desc(client, db_session, auth_headers):
     for name in ("Apple", "Banana", "Cherry"):
         fid = _insert_food(db_session, name=name)
         _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"sort_by": "name", "sort_dir": "desc"})
+    resp = client.get("/api/foods", params={"sort_by": "name", "sort_dir": "desc"}, headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     cherry_i = names.index("Cherry")
@@ -384,20 +384,20 @@ def test_sort_by_name_desc(client, db_session):
     assert cherry_i < banana_i < apple_i
 
 
-def test_sort_by_source(client, db_session):
+def test_sort_by_source(client, db_session, auth_headers):
     fid_u = _insert_food(db_session, name="USDA Berry", source_key="usda")
     _add_nutrient(db_session, fid_u)
     fid_c = _insert_food(db_session, name="Custom Berry", source_key="custom")
     _add_nutrient(db_session, fid_c)
 
-    resp = client.get("/api/foods", params={"sort_by": "source", "sort_dir": "asc"})
+    resp = client.get("/api/foods", params={"sort_by": "source", "sort_dir": "asc"}, headers=auth_headers)
     assert resp.status_code == 200
     sources = [f["source"] for f in resp.json()["items"]]
     # "custom" < "usda" alphabetically
     assert sources.index("custom") < sources.index("usda")
 
 
-def test_sort_by_calories_asc(client, db_session):
+def test_sort_by_calories_asc(client, db_session, auth_headers):
     fid_high = _insert_food(db_session, name="High Cal")
     _add_nutrient(db_session, fid_high, nutrient_key="calories_kcal", value=400.0)
 
@@ -407,14 +407,14 @@ def test_sort_by_calories_asc(client, db_session):
     fid_none = _insert_food(db_session, name="No Cal")
     _add_nutrient(db_session, fid_none, nutrient_key="protein_g", value=10.0)
 
-    resp = client.get("/api/foods", params={"sort_by": "calories", "sort_dir": "asc"})
+    resp = client.get("/api/foods", params={"sort_by": "calories", "sort_dir": "asc"}, headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert names.index("Low Cal") < names.index("High Cal")
     assert names.index("No Cal") == len(names) - 1
 
 
-def test_sort_by_calories_desc_nulls_last(client, db_session):
+def test_sort_by_calories_desc_nulls_last(client, db_session, auth_headers):
     fid_high = _insert_food(db_session, name="High Cal 2")
     _add_nutrient(db_session, fid_high, nutrient_key="calories_kcal", value=400.0)
 
@@ -424,48 +424,48 @@ def test_sort_by_calories_desc_nulls_last(client, db_session):
     fid_none = _insert_food(db_session, name="No Cal 2")
     _add_nutrient(db_session, fid_none, nutrient_key="protein_g", value=10.0)
 
-    resp = client.get("/api/foods", params={"sort_by": "calories", "sort_dir": "desc"})
+    resp = client.get("/api/foods", params={"sort_by": "calories", "sort_dir": "desc"}, headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert names.index("High Cal 2") < names.index("Low Cal 2")
     assert names.index("No Cal 2") == len(names) - 1
 
 
-def test_sort_by_invalid_returns_422(client):
-    resp = client.get("/api/foods", params={"sort_by": "nonsense"})
+def test_sort_by_invalid_returns_422(client, auth_headers):
+    resp = client.get("/api/foods", params={"sort_by": "nonsense"}, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_sort_dir_invalid_returns_422(client):
-    resp = client.get("/api/foods", params={"sort_dir": "sideways"})
+def test_sort_dir_invalid_returns_422(client, auth_headers):
+    resp = client.get("/api/foods", params={"sort_dir": "sideways"}, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_limit_100_accepted(client, db_session):
+def test_limit_100_accepted(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Hundred Food")
     _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"limit": 100})
+    resp = client.get("/api/foods", params={"limit": 100}, headers=auth_headers)
     assert resp.status_code == 200
 
 
-def test_limit_101_rejected(client):
-    resp = client.get("/api/foods", params={"limit": 101})
+def test_limit_101_rejected(client, auth_headers):
+    resp = client.get("/api/foods", params={"limit": 101}, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_pagination_correct_60_foods(client, db_session):
+def test_pagination_correct_60_foods(client, db_session, auth_headers):
     for i in range(60):
         fid = _insert_food(db_session, name=f"PaginateFood{i:02d}")
         _add_nutrient(db_session, fid)
 
-    resp = client.get("/api/foods", params={"q": "PaginateFood", "limit": 25, "offset": 25})
+    resp = client.get("/api/foods", params={"q": "PaginateFood", "limit": 25, "offset": 25}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 60
     assert len(body["items"]) == 25
 
-    all_resp = client.get("/api/foods", params={"q": "PaginateFood", "limit": 100, "offset": 0})
+    all_resp = client.get("/api/foods", params={"q": "PaginateFood", "limit": 100, "offset": 0}, headers=auth_headers)
     all_names = [f["name"] for f in all_resp.json()["items"]]
     page_names = [f["name"] for f in body["items"]]
     assert page_names == all_names[25:50]
@@ -505,8 +505,8 @@ FULL_PAYLOAD = {
 # ---------------------------------------------------------------------------
 
 
-def test_basic_food_calories_only(client):
-    resp = client.post("/api/foods", json=CALORIES_ONLY)
+def test_basic_food_calories_only(client, auth_headers):
+    resp = client.post("/api/foods", json=CALORIES_ONLY, headers=auth_headers)
     assert resp.status_code == 201
     data = resp.json()
     assert data["name"] == "Plain Rice"
@@ -518,8 +518,8 @@ def test_basic_food_calories_only(client):
     assert "id" in data
 
 
-def test_full_food_with_nutrients_and_variants(client):
-    resp = client.post("/api/foods", json=FULL_PAYLOAD)
+def test_full_food_with_nutrients_and_variants(client, auth_headers):
+    resp = client.post("/api/foods", json=FULL_PAYLOAD, headers=auth_headers)
     assert resp.status_code == 201
     data = resp.json()
     assert data["name"] == "Cheddar Cheese"
@@ -530,28 +530,28 @@ def test_full_food_with_nutrients_and_variants(client):
     assert len(data["variants"]) == 2
 
 
-def test_liquid_food_default_unit_ml(client):
+def test_liquid_food_default_unit_ml(client, auth_headers):
     payload = {
         "name": "Whole Milk",
         "default_unit": "ml",
         "nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "61"}],
     }
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 201
     assert resp.json()["default_unit"] == "ml"
 
 
-def test_unknown_source_returns_422(client):
+def test_unknown_source_returns_422(client, auth_headers):
     payload = {
         "name": "Ghost Food",
         "source": "nonexistent_source",
         "nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "100"}],
     }
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_unknown_nutrient_key_returns_422(client):
+def test_unknown_nutrient_key_returns_422(client, auth_headers):
     payload = {
         "name": "Bad Nutrient Food",
         "nutrients": [
@@ -559,49 +559,49 @@ def test_unknown_nutrient_key_returns_422(client):
             {"nutrient_key": "made_up_nutrient", "value_per_100": "5"},
         ],
     }
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_missing_calories_returns_422(client):
+def test_missing_calories_returns_422(client, auth_headers):
     payload = {
         "name": "No Calories Food",
         "nutrients": [{"nutrient_key": "protein_g", "value_per_100": "20"}],
     }
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_duplicate_barcode_returns_422(client):
+def test_duplicate_barcode_returns_422(client, auth_headers):
     payload = {
         "name": "First Bar",
         "barcode": "000000000001",
         "nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "100"}],
     }
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 201
 
     payload["name"] = "Second Bar"
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_duplicate_source_source_id_returns_422(client):
+def test_duplicate_source_source_id_returns_422(client, auth_headers):
     payload = {
         "name": "USDA Apple",
         "source": "usda",
         "source_id": "FDC-APPLE-001",
         "nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "52"}],
     }
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 201
 
     payload["name"] = "USDA Apple Duplicate"
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_atomic_rollback_on_unknown_nutrient(client):
+def test_atomic_rollback_on_unknown_nutrient(client, auth_headers):
     """Partial failure: unknown nutrient_key returns 422, no food is persisted."""
     payload = {
         "name": "Rollback Food",
@@ -610,7 +610,7 @@ def test_atomic_rollback_on_unknown_nutrient(client):
             {"nutrient_key": "nonexistent_key", "value_per_100": "1"},
         ],
     }
-    resp = client.post("/api/foods", json=payload)
+    resp = client.post("/api/foods", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
@@ -636,7 +636,7 @@ _USDA_CHICKEN_FOOD = {
 }
 
 
-def test_get_foods_response_includes_display_name(client, db_session):
+def test_get_foods_response_includes_display_name(client, db_session, auth_headers):
     """GET /api/foods includes display_name in every result (null or string)."""
     src_id = _food_source_id(db_session, "custom")
     nut_id = _nutrient_id(db_session, "calories_kcal")
@@ -657,7 +657,7 @@ def test_get_foods_response_includes_display_name(client, db_session):
     )
     reindex_food(uuid.UUID(fid), db_session)
 
-    resp = client.get("/api/foods", params={"q": "Display Name Food"})
+    resp = client.get("/api/foods", params={"q": "Display Name Food"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()["items"]
     assert len(data) >= 1
@@ -669,24 +669,24 @@ def test_get_foods_response_includes_display_name(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_get_food_by_id_returns_200(client, db_session):
+def test_get_food_by_id_returns_200(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Single Food")
     _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=200.0)
 
-    resp = client.get(f"/api/foods/{fid}")
+    resp = client.get(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["name"] == "Single Food"
     uuid.UUID(data["id"])
 
 
-def test_get_food_by_id_response_shape(client, db_session):
+def test_get_food_by_id_response_shape(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Shape Food", brand="TestBrand", source_key="usda")
     _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=100.0)
     _add_nutrient(db_session, fid, nutrient_key="protein_g", value=5.0)
     _add_variant(db_session, fid, name="1 cup", amount=240.0, unit="ml")
 
-    resp = client.get(f"/api/foods/{fid}")
+    resp = client.get(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -696,11 +696,11 @@ def test_get_food_by_id_response_shape(client, db_session):
     assert data["default_unit"] == "g"
 
 
-def test_get_food_by_id_source_is_key_string(client, db_session):
+def test_get_food_by_id_source_is_key_string(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Source Key Food", source_key="usda")
     _add_nutrient(db_session, fid)
 
-    resp = client.get(f"/api/foods/{fid}")
+    resp = client.get(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["source"] == "usda"
@@ -711,12 +711,12 @@ def test_get_food_by_id_source_is_key_string(client, db_session):
         pass
 
 
-def test_get_food_by_id_nutrients_list(client, db_session):
+def test_get_food_by_id_nutrients_list(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Nutrient Food")
     _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=150.0)
     _add_nutrient(db_session, fid, nutrient_key="protein_g", value=12.5)
 
-    resp = client.get(f"/api/foods/{fid}")
+    resp = client.get(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -725,13 +725,13 @@ def test_get_food_by_id_nutrients_list(client, db_session):
     assert nutrients["protein_g"] == Decimal("12.5")
 
 
-def test_get_food_by_id_variants_list(client, db_session):
+def test_get_food_by_id_variants_list(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Variant Food")
     _add_nutrient(db_session, fid)
     _add_variant(db_session, fid, name="1 slice", amount=28.0, unit="g")
     _add_variant(db_session, fid, name="1 cup", amount=240.0, unit="ml")
 
-    resp = client.get(f"/api/foods/{fid}")
+    resp = client.get(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -740,13 +740,13 @@ def test_get_food_by_id_variants_list(client, db_session):
     assert names == {"1 slice", "1 cup"}
 
 
-def test_get_food_by_id_unknown_returns_404(client):
+def test_get_food_by_id_unknown_returns_404(client, auth_headers):
     missing_id = str(uuid.uuid4())
-    resp = client.get(f"/api/foods/{missing_id}")
+    resp = client.get(f"/api/foods/{missing_id}", headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_get_food_by_id_uses_get_food_with_overrides(client, db_session, monkeypatch):
+def test_get_food_by_id_uses_get_food_with_overrides(client, db_session, monkeypatch, auth_headers):
     """Route must delegate to get_food_with_overrides, not query foods directly."""
     fid = _insert_food(db_session, name="Override Food")
     _add_nutrient(db_session, fid)
@@ -762,16 +762,16 @@ def test_get_food_by_id_uses_get_food_with_overrides(client, db_session, monkeyp
 
     monkeypatch.setattr("porquilo.routers.foods.get_food_with_overrides", _spy)
 
-    resp = client.get(f"/api/foods/{fid}")
+    resp = client.get(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 200
     assert len(calls) == 1
 
 
-def test_get_food_by_id_lookup_route_not_matched_as_uuid(client):
+def test_get_food_by_id_lookup_route_not_matched_as_uuid(client, auth_headers):
     """Route ordering: /lookup/barcode/... must not be parsed as /{food_id}."""
     mock_client, _ = _make_off_mock(status_code=404)
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        resp = client.get("/api/foods/lookup/barcode/012345678901")
+        resp = client.get("/api/foods/lookup/barcode/012345678901", headers=auth_headers)
     # 404 means the barcode lookup route was matched (not a 422 UUID parse error)
     assert resp.status_code == 404
 
@@ -781,13 +781,13 @@ def test_get_food_by_id_lookup_route_not_matched_as_uuid(client):
 # ---------------------------------------------------------------------------
 
 
-def test_patch_name_only(client, db_session):
+def test_patch_name_only(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Old Name")
     _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=100.0)
     _add_nutrient(db_session, fid, nutrient_key="protein_g", value=5.0)
     _add_variant(db_session, fid, name="1 cup", amount=240.0, unit="ml")
 
-    resp = client.patch(f"/api/foods/{fid}", json={"name": "New Name"})
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "New Name"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["name"] == "New Name"
@@ -798,7 +798,7 @@ def test_patch_name_only(client, db_session):
     assert len(data["variants"]) == 1
 
 
-def test_patch_nutrients_merge(client, db_session):
+def test_patch_nutrients_merge(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Merge Food")
     _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=100.0)
     _add_nutrient(db_session, fid, nutrient_key="protein_g", value=5.0)
@@ -806,6 +806,7 @@ def test_patch_nutrients_merge(client, db_session):
     resp = client.patch(
         f"/api/foods/{fid}",
         json={"nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "200.0"}]},
+        headers=auth_headers,
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -815,7 +816,7 @@ def test_patch_nutrients_merge(client, db_session):
     assert nutrients["protein_g"] == Decimal("5")
 
 
-def test_patch_variants_replace(client, db_session):
+def test_patch_variants_replace(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Variant Food")
     _add_nutrient(db_session, fid)
     _add_variant(db_session, fid, name="Old A", amount=100.0, unit="g")
@@ -824,6 +825,7 @@ def test_patch_variants_replace(client, db_session):
     resp = client.patch(
         f"/api/foods/{fid}",
         json={"variants": [{"name": "New V", "amount": "50.0", "unit": "g"}]},
+        headers=auth_headers,
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -831,25 +833,25 @@ def test_patch_variants_replace(client, db_session):
     assert data["variants"][0]["name"] == "New V"
 
 
-def test_patch_brand_null(client, db_session):
+def test_patch_brand_null(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Branded Food", brand="Acme")
     _add_nutrient(db_session, fid)
 
-    resp = client.patch(f"/api/foods/{fid}", json={"brand": None})
+    resp = client.patch(f"/api/foods/{fid}", json={"brand": None}, headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["brand"] is None
 
 
-def test_patch_omitted_brand_unchanged(client, db_session):
+def test_patch_omitted_brand_unchanged(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Keep Brand", brand="Keep")
     _add_nutrient(db_session, fid)
 
-    resp = client.patch(f"/api/foods/{fid}", json={"name": "Keep Brand Updated"})
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "Keep Brand Updated"}, headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["brand"] == "Keep"
 
 
-def test_patch_duplicate_barcode_returns_422(client):
+def test_patch_duplicate_barcode_returns_422(client, auth_headers):
     first = client.post(
         "/api/foods",
         json={
@@ -857,6 +859,7 @@ def test_patch_duplicate_barcode_returns_422(client):
             "barcode": "111000000001",
             "nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "100"}],
         },
+        headers=auth_headers,
     )
     assert first.status_code == 201
     second = client.post(
@@ -865,32 +868,33 @@ def test_patch_duplicate_barcode_returns_422(client):
             "name": "Second Bar",
             "nutrients": [{"nutrient_key": "calories_kcal", "value_per_100": "100"}],
         },
+        headers=auth_headers,
     )
     assert second.status_code == 201
     second_id = second.json()["id"]
 
-    resp = client.patch(f"/api/foods/{second_id}", json={"barcode": "111000000001"})
+    resp = client.patch(f"/api/foods/{second_id}", json={"barcode": "111000000001"}, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_patch_usda_food_returns_422(client, db_session):
+def test_patch_usda_food_returns_422(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="USDA Food", source_key="usda")
     _add_nutrient(db_session, fid)
 
-    resp = client.patch(f"/api/foods/{fid}", json={"name": "Updated"})
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "Updated"}, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_patch_unknown_id_returns_404(client):
-    resp = client.patch(f"/api/foods/{uuid.uuid4()}", json={"name": "Ghost"})
+def test_patch_unknown_id_returns_404(client, auth_headers):
+    resp = client.patch(f"/api/foods/{uuid.uuid4()}", json={"name": "Ghost"}, headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_patch_response_is_food_out(client, db_session):
+def test_patch_response_is_food_out(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Shape Check")
     _add_nutrient(db_session, fid)
 
-    resp = client.patch(f"/api/foods/{fid}", json={"name": "Shape Check 2"})
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "Shape Check 2"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert set(data.keys()) >= {"id", "name", "source", "default_unit", "nutrients", "variants"}
@@ -898,11 +902,11 @@ def test_patch_response_is_food_out(client, db_session):
     assert data["source"] == "custom"
 
 
-def test_patch_updated_at_changes(client, db_session):
+def test_patch_updated_at_changes(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Timestamp Food")
     _add_nutrient(db_session, fid)
 
-    resp = client.patch(f"/api/foods/{fid}", json={"name": "Timestamp Food 2"})
+    resp = client.patch(f"/api/foods/{fid}", json={"name": "Timestamp Food 2"}, headers=auth_headers)
     assert resp.status_code == 200
 
     row = db_session.execute(
@@ -922,30 +926,30 @@ def test_patch_updated_at_changes(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_delete_custom_food_returns_204(client, db_session):
+def test_delete_custom_food_returns_204(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Delete Me")
     _add_nutrient(db_session, fid)
 
-    resp = client.delete(f"/api/foods/{fid}")
+    resp = client.delete(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 204
     assert resp.content == b""
 
 
-def test_delete_food_then_get_returns_404(client, db_session):
+def test_delete_food_then_get_returns_404(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Gone Food")
     _add_nutrient(db_session, fid)
 
-    client.delete(f"/api/foods/{fid}")
-    resp = client.get(f"/api/foods/{fid}")
+    client.delete(f"/api/foods/{fid}", headers=auth_headers)
+    resp = client.get(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_delete_cascades_food_nutrients(client, db_session):
+def test_delete_cascades_food_nutrients(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Cascade Nutrients")
     _add_nutrient(db_session, fid, nutrient_key="calories_kcal", value=100.0)
     _add_nutrient(db_session, fid, nutrient_key="protein_g", value=10.0)
 
-    resp = client.delete(f"/api/foods/{fid}")
+    resp = client.delete(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 204
 
     rows = db_session.execute(
@@ -955,13 +959,13 @@ def test_delete_cascades_food_nutrients(client, db_session):
     assert rows == 0
 
 
-def test_delete_cascades_food_variants(client, db_session):
+def test_delete_cascades_food_variants(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Cascade Variants")
     _add_nutrient(db_session, fid)
     _add_variant(db_session, fid, name="1 cup", amount=240.0, unit="ml")
     _add_variant(db_session, fid, name="1 tbsp", amount=15.0, unit="ml")
 
-    resp = client.delete(f"/api/foods/{fid}")
+    resp = client.delete(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 204
 
     rows = db_session.execute(
@@ -971,20 +975,20 @@ def test_delete_cascades_food_variants(client, db_session):
     assert rows == 0
 
 
-def test_delete_usda_food_returns_422(client, db_session):
+def test_delete_usda_food_returns_422(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="USDA Food", source_key="usda")
     _add_nutrient(db_session, fid)
 
-    resp = client.delete(f"/api/foods/{fid}")
+    resp = client.delete(f"/api/foods/{fid}", headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_delete_unknown_id_returns_404(client):
-    resp = client.delete(f"/api/foods/{uuid.uuid4()}")
+def test_delete_unknown_id_returns_404(client, auth_headers):
+    resp = client.delete(f"/api/foods/{uuid.uuid4()}", headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_get_foods_enqueues_background_task_for_new_usda_food(client, db_session, monkeypatch):
+def test_get_foods_enqueues_background_task_for_new_usda_food(client, db_session, monkeypatch, auth_headers):
     """foods.py wires new USDA food IDs into background_tasks after upsert."""
     import uuid as _uuid
     from unittest.mock import MagicMock
@@ -999,7 +1003,7 @@ def test_get_foods_enqueues_background_task_for_new_usda_food(client, db_session
     # Mock upsert_usda_food so no real DB write (and no session.commit) occurs.
     with patch("porquilo.routers.foods.search_usda", return_value=[_USDA_CHICKEN_FOOD]), \
          patch("porquilo.routers.foods.upsert_usda_food", return_value=(fake_food, True)):
-        resp = client.get("/api/foods", params={"q": "chicken"})
+        resp = client.get("/api/foods", params={"q": "chicken"}, headers=auth_headers)
 
     assert resp.status_code == 200
     # TestClient runs background tasks synchronously before returning the response.
@@ -1039,7 +1043,7 @@ def _make_off_mock(status_code=200, body=None):
     return mock_client, mock_response
 
 
-def test_barcode_cache_hit(client, db_session):
+def test_barcode_cache_hit(client, db_session, auth_headers):
     """Food already in the DB with matching barcode → 200, no httpx call."""
     fid = _insert_food(db_session, name="Cached Cracker", source_key="custom")
     src_id = _food_source_id(db_session, "custom")
@@ -1051,7 +1055,7 @@ def test_barcode_cache_hit(client, db_session):
     db_session.commit()
 
     with patch("porquilo.routers.foods.httpx.Client") as mock_cls:
-        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
 
     assert resp.status_code == 200
     mock_cls.assert_not_called()
@@ -1059,11 +1063,11 @@ def test_barcode_cache_hit(client, db_session):
     assert body["name"] == "Cached Cracker"
 
 
-def test_barcode_cache_miss_valid(client, db_session):
+def test_barcode_cache_miss_valid(client, db_session, auth_headers):
     """Cache miss with valid OFF response → upserts food, returns 200 FoodOut."""
     mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -1071,41 +1075,41 @@ def test_barcode_cache_miss_valid(client, db_session):
     assert body["source"] == "open_food_facts"
 
 
-def test_barcode_cache_miss_second_request(client, db_session):
+def test_barcode_cache_miss_second_request(client, db_session, auth_headers):
     """Second request for same UPC hits the DB cache — no second HTTP call."""
     mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        r1 = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        r1 = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
     assert r1.status_code == 200
 
     with patch("porquilo.routers.foods.httpx.Client") as mock_cls2:
-        r2 = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        r2 = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
     assert r2.status_code == 200
     mock_cls2.assert_not_called()
 
 
-def test_barcode_off_non_200(client, db_session):
+def test_barcode_off_non_200(client, db_session, auth_headers):
     """OFF returns non-200 → 404."""
     mock_client, _ = _make_off_mock(status_code=404)
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_barcode_off_no_product_key(client, db_session):
+def test_barcode_off_no_product_key(client, db_session, auth_headers):
     """OFF response JSON has no 'product' key → 404."""
     mock_client, _ = _make_off_mock(body={"status": 0})
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_barcode_off_no_calories(client, db_session):
+def test_barcode_off_no_calories(client, db_session, auth_headers):
     """Product missing energy-kcal_100g → 404, nothing upserted."""
     product_no_cal = {**_MOCK_OFF_PRODUCT, "nutriments": {"proteins_100g": 8.0}}
     mock_client, _ = _make_off_mock(body={"product": product_no_cal})
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
     assert resp.status_code == 404
 
     row = db_session.execute(
@@ -1114,31 +1118,31 @@ def test_barcode_off_no_calories(client, db_session):
     assert row == 0
 
 
-def test_barcode_sodium_conversion(client, db_session):
+def test_barcode_sodium_conversion(client, db_session, auth_headers):
     """sodium_100g = 0.5 g → sodium_mg = 500 in the returned nutrients."""
     mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
 
     assert resp.status_code == 200
     nutrients = {n["nutrient_key"]: n["value_per_100"] for n in resp.json()["nutrients"]}
     assert float(nutrients["sodium_mg"]) == pytest.approx(500.0)
 
 
-def test_barcode_source_is_open_food_facts(client, db_session):
+def test_barcode_source_is_open_food_facts(client, db_session, auth_headers):
     """Response source field is 'open_food_facts'."""
     mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["source"] == "open_food_facts"
 
 
-def test_barcode_fields_set_correctly(client, db_session):
+def test_barcode_fields_set_correctly(client, db_session, auth_headers):
     """Upserted food has barcode and external_source_id equal to the UPC."""
     mock_client, _ = _make_off_mock(body={"product": _MOCK_OFF_PRODUCT})
     with patch("porquilo.routers.foods.httpx.Client", return_value=mock_client):
-        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}")
+        resp = client.get(f"/api/foods/lookup/barcode/{_UPC}", headers=auth_headers)
     assert resp.status_code == 200
 
     row = db_session.execute(
@@ -1150,7 +1154,7 @@ def test_barcode_fields_set_correctly(client, db_session):
     assert row[1] == _UPC
 
 
-def test_barcode_route_order():
+def test_barcode_route_order(auth_headers):
     """Grep confirms GET /lookup/barcode is registered before GET /{food_id} in foods.py."""
     from pathlib import Path
 
