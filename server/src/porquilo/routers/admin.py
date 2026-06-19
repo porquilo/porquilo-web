@@ -8,9 +8,11 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from porquilo.core.database import get_session
+from porquilo.core.deps import require_admin
 from porquilo.core.llm import is_llm_configured
 from porquilo.models.food import Food
 from porquilo.models.food_source import FoodSource
+from porquilo.models.user import User
 from porquilo.services.name_normalization import normalize_and_store
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -27,7 +29,7 @@ class NormalizeNamesResult(BaseModel):
 
 
 @router.post("/normalize-names", response_model=NormalizeNamesResult)
-def normalize_names(session: Session = Depends(get_session)):
+def normalize_names(session: Session = Depends(get_session), current_user: User = Depends(require_admin)):
     if not is_llm_configured():
         return JSONResponse(status_code=400, content={"error": "LLM not configured"})
 

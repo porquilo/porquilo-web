@@ -68,6 +68,7 @@ def _insert_entry(
     meal_id: str,
     food_id: str,
     eaten_at: datetime,
+    user_id: str | None = None,
     weight_g: float = 100.0,
     weight_confidence: str = "exact",
     input_method: str = "manual",
@@ -76,8 +77,8 @@ def _insert_entry(
     db_session.execute(
         sa.text(
             "INSERT INTO log_entries "
-            "(id, food_id, meal_id, eaten_at, logged_at, weight_g, weight_source, weight_confidence, input_method) "
-            "VALUES (:id, :fid, :mid, :eaten, :logged, :wg, 'user', :wc, :im)"
+            "(id, food_id, meal_id, eaten_at, logged_at, weight_g, weight_source, weight_confidence, input_method, user_id) "
+            "VALUES (:id, :fid, :mid, :eaten, :logged, :wg, 'user', :wc, :im, :uid)"
         ),
         {
             "id": eid,
@@ -88,6 +89,7 @@ def _insert_entry(
             "wg": weight_g,
             "wc": weight_confidence,
             "im": input_method,
+            "uid": user_id.replace("-", "") if user_id else None,
         },
     )
     return eid
@@ -125,9 +127,9 @@ def _insert_skip(db_session, meal_id: str, skipped_on: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_all_meals_appear_with_no_entries(client, db_session):
+def test_all_meals_appear_with_no_entries(client, db_session, auth_headers):
     """All four meals are returned even when no food has been logged."""
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["date"] == "2026-06-01"
@@ -142,7 +144,7 @@ def test_all_meals_appear_with_no_entries(client, db_session):
     assert data["has_estimated_entries"] is False
 
 
-def test_skipped_meal_is_flagged_and_has_no_entries(client, db_session):
+def test_skipped_meal_is_flagged_and_has_no_entries(client, db_session, auth_headers, test_user):
     """A meal with a MealSkip row is is_skipped=true with empty entries."""
     _insert_skip(db_session, _LUNCH_ID, "2026-06-01")
 
@@ -153,10 +155,11 @@ def test_skipped_meal_is_flagged_and_has_no_entries(client, db_session):
         meal_id=_LUNCH_ID,
         food_id=fid,
         eaten_at=datetime(2026, 6, 1, 12, 0, 0),
+        user_id=str(test_user.id),
     )
     _add_entry_nutrient(db_session, eid, "calories_kcal", 400.0)
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -170,7 +173,7 @@ def test_skipped_meal_is_flagged_and_has_no_entries(client, db_session):
     assert breakfast["is_skipped"] is False
 
 
-def test_food_name_from_food_table(client, db_session):
+def test_food_name_from_food_table(client, db_session, auth_headers, test_user):
     """food_name is resolved via log_entry.food_id → foods.name."""
     fid = _insert_food(db_session, name="Greek Yogurt")
     eid = _insert_entry(
@@ -178,35 +181,36 @@ def test_food_name_from_food_table(client, db_session):
         meal_id=_BREAKFAST_ID,
         food_id=fid,
         eaten_at=datetime(2026, 6, 1, 8, 0, 0),
+        user_id=str(test_user.id),
     )
     _add_entry_nutrient(db_session, eid, "calories_kcal", 150.0)
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     breakfast = next(m for m in resp.json()["meals"] if m["meal_name"] == "Breakfast")
     assert len(breakfast["entries"]) == 1
     assert breakfast["entries"][0]["food_name"] == "Greek Yogurt"
 
 
-def test_entries_sorted_by_eaten_at_within_meal(client, db_session):
+def test_entries_sorted_by_eaten_at_within_meal(client, db_session, auth_headers, test_user):
     """Entries within a meal are ordered chronologically by eaten_at."""
     fid1 = _insert_food(db_session, name="Coffee")
     fid2 = _insert_food(db_session, name="Oatmeal")
     fid3 = _insert_food(db_session, name="Banana")
 
     # Insert out of order
-    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid2, eaten_at=datetime(2026, 6, 1, 8, 30, 0))
-    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid1, eaten_at=datetime(2026, 6, 1, 7, 45, 0))
-    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid3, eaten_at=datetime(2026, 6, 1, 9, 0, 0))
+    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid2, eaten_at=datetime(2026, 6, 1, 8, 30, 0), user_id=str(test_user.id))
+    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid1, eaten_at=datetime(2026, 6, 1, 7, 45, 0), user_id=str(test_user.id))
+    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid3, eaten_at=datetime(2026, 6, 1, 9, 0, 0), user_id=str(test_user.id))
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     breakfast = next(m for m in resp.json()["meals"] if m["meal_name"] == "Breakfast")
     names = [e["food_name"] for e in breakfast["entries"]]
     assert names == ["Coffee", "Oatmeal", "Banana"]
 
 
-def test_has_estimated_entries_true(client, db_session):
+def test_has_estimated_entries_true(client, db_session, auth_headers, test_user):
     """has_estimated_entries is true when any entry has weight_confidence='estimated'."""
     fid = _insert_food(db_session, name="Soup")
     _insert_entry(
@@ -215,14 +219,15 @@ def test_has_estimated_entries_true(client, db_session):
         food_id=fid,
         eaten_at=datetime(2026, 6, 1, 12, 0, 0),
         weight_confidence="estimated",
+        user_id=str(test_user.id),
     )
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["has_estimated_entries"] is True
 
 
-def test_has_estimated_entries_false_when_all_exact(client, db_session):
+def test_has_estimated_entries_false_when_all_exact(client, db_session, auth_headers, test_user):
     """has_estimated_entries is false when all entries are exact."""
     fid = _insert_food(db_session, name="Chicken Breast")
     _insert_entry(
@@ -231,27 +236,28 @@ def test_has_estimated_entries_false_when_all_exact(client, db_session):
         food_id=fid,
         eaten_at=datetime(2026, 6, 1, 18, 0, 0),
         weight_confidence="exact",
+        user_id=str(test_user.id),
     )
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["has_estimated_entries"] is False
 
 
-def test_nutrient_totals_summed_per_meal(client, db_session):
+def test_nutrient_totals_summed_per_meal(client, db_session, auth_headers, test_user):
     """meal_totals sums nutrient values across all entries in the meal."""
     fid1 = _insert_food(db_session, name="Egg")
     fid2 = _insert_food(db_session, name="Toast")
 
-    eid1 = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid1, eaten_at=datetime(2026, 6, 1, 8, 0, 0))
-    eid2 = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid2, eaten_at=datetime(2026, 6, 1, 8, 5, 0))
+    eid1 = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid1, eaten_at=datetime(2026, 6, 1, 8, 0, 0), user_id=str(test_user.id))
+    eid2 = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid2, eaten_at=datetime(2026, 6, 1, 8, 5, 0), user_id=str(test_user.id))
 
     _add_entry_nutrient(db_session, eid1, "calories_kcal", 70.0)
     _add_entry_nutrient(db_session, eid1, "protein_g", 6.0)
     _add_entry_nutrient(db_session, eid2, "calories_kcal", 90.0)
     _add_entry_nutrient(db_session, eid2, "protein_g", 3.0)
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     breakfast = next(m for m in resp.json()["meals"] if m["meal_name"] == "Breakfast")
     totals = breakfast["meal_totals"]
@@ -259,18 +265,18 @@ def test_nutrient_totals_summed_per_meal(client, db_session):
     assert Decimal(str(totals["protein_g"])) == Decimal("9")
 
 
-def test_day_totals_equal_sum_of_meal_totals(client, db_session):
+def test_day_totals_equal_sum_of_meal_totals(client, db_session, auth_headers, test_user):
     """day_totals equals the arithmetic sum of all meal_totals."""
     fid1 = _insert_food(db_session, name="Pancakes")
     fid2 = _insert_food(db_session, name="Salad")
 
-    eid1 = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid1, eaten_at=datetime(2026, 6, 1, 8, 0, 0))
-    eid2 = _insert_entry(db_session, meal_id=_LUNCH_ID, food_id=fid2, eaten_at=datetime(2026, 6, 1, 12, 0, 0))
+    eid1 = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid1, eaten_at=datetime(2026, 6, 1, 8, 0, 0), user_id=str(test_user.id))
+    eid2 = _insert_entry(db_session, meal_id=_LUNCH_ID, food_id=fid2, eaten_at=datetime(2026, 6, 1, 12, 0, 0), user_id=str(test_user.id))
 
     _add_entry_nutrient(db_session, eid1, "calories_kcal", 300.0)
     _add_entry_nutrient(db_session, eid2, "calories_kcal", 200.0)
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -282,12 +288,12 @@ def test_day_totals_equal_sum_of_meal_totals(client, db_session):
     assert Decimal(str(data["day_totals"]["calories_kcal"])) == Decimal("500")
 
 
-def test_entry_ids_are_uuids(client, db_session):
+def test_entry_ids_are_uuids(client, db_session, auth_headers, test_user):
     """All IDs in the response are valid UUIDs."""
     fid = _insert_food(db_session, name="Apple")
-    _insert_entry(db_session, meal_id=_SNACK_ID, food_id=fid, eaten_at=datetime(2026, 6, 1, 15, 0, 0))
+    _insert_entry(db_session, meal_id=_SNACK_ID, food_id=fid, eaten_at=datetime(2026, 6, 1, 15, 0, 0), user_id=str(test_user.id))
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -297,7 +303,7 @@ def test_entry_ids_are_uuids(client, db_session):
             uuid.UUID(entry["id"])
 
 
-def test_entry_at_11pm_appears_in_correct_day_not_next(client, db_session):
+def test_entry_at_11pm_appears_in_correct_day_not_next(client, db_session, auth_headers, test_user):
     """An entry eaten at 23:00 UTC on June 1 appears on June 1, not June 2."""
     fid = _insert_food(db_session, name="Late Snack")
     eid = _insert_entry(
@@ -305,45 +311,46 @@ def test_entry_at_11pm_appears_in_correct_day_not_next(client, db_session):
         meal_id=_SNACK_ID,
         food_id=fid,
         eaten_at=datetime(2026, 6, 1, 23, 0, 0),
+        user_id=str(test_user.id),
     )
     _add_entry_nutrient(db_session, eid, "calories_kcal", 50.0)
 
-    resp_june1 = client.get("/api/diary/2026-06-01")
+    resp_june1 = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp_june1.status_code == 200
     snack_june1 = next(m for m in resp_june1.json()["meals"] if m["meal_name"] == "Snack")
     assert len(snack_june1["entries"]) == 1
     assert snack_june1["entries"][0]["food_name"] == "Late Snack"
 
-    resp_june2 = client.get("/api/diary/2026-06-02")
+    resp_june2 = client.get("/api/diary/2026-06-02", headers=auth_headers)
     assert resp_june2.status_code == 200
     snack_june2 = next(m for m in resp_june2.json()["meals"] if m["meal_name"] == "Snack")
     assert len(snack_june2["entries"]) == 0
 
 
-def test_entries_from_other_dates_excluded(client, db_session):
+def test_entries_from_other_dates_excluded(client, db_session, auth_headers, test_user):
     """Only entries whose eaten_at falls in the queried date are returned."""
     fid = _insert_food(db_session, name="Porridge")
 
-    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid, eaten_at=datetime(2026, 5, 31, 8, 0, 0))
-    eid_target = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid, eaten_at=datetime(2026, 6, 1, 8, 0, 0))
-    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid, eaten_at=datetime(2026, 6, 2, 8, 0, 0))
+    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid, eaten_at=datetime(2026, 5, 31, 8, 0, 0), user_id=str(test_user.id))
+    eid_target = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid, eaten_at=datetime(2026, 6, 1, 8, 0, 0), user_id=str(test_user.id))
+    _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid, eaten_at=datetime(2026, 6, 2, 8, 0, 0), user_id=str(test_user.id))
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     breakfast = next(m for m in resp.json()["meals"] if m["meal_name"] == "Breakfast")
     assert len(breakfast["entries"]) == 1
     assert breakfast["entries"][0]["id"].replace("-", "") == eid_target
 
 
-def test_nutrient_key_uses_definition_key(client, db_session):
+def test_nutrient_key_uses_definition_key(client, db_session, auth_headers, test_user):
     """Nutrient keys in the response use NutrientDefinition.key (e.g. 'calories_kcal')."""
     fid = _insert_food(db_session, name="Rice")
-    eid = _insert_entry(db_session, meal_id=_DINNER_ID, food_id=fid, eaten_at=datetime(2026, 6, 1, 18, 0, 0))
+    eid = _insert_entry(db_session, meal_id=_DINNER_ID, food_id=fid, eaten_at=datetime(2026, 6, 1, 18, 0, 0), user_id=str(test_user.id))
     _add_entry_nutrient(db_session, eid, "calories_kcal", 200.0)
     _add_entry_nutrient(db_session, eid, "protein_g", 4.0)
     _add_entry_nutrient(db_session, eid, "carbs_g", 45.0)
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     dinner = next(m for m in resp.json()["meals"] if m["meal_name"] == "Dinner")
     assert len(dinner["entries"]) == 1
@@ -354,38 +361,38 @@ def test_nutrient_key_uses_definition_key(client, db_session):
     assert entry_nutrients["calories_kcal"]["coverage"] == "complete"
 
 
-def test_invalid_date_format_returns_422(client):
+def test_invalid_date_format_returns_422(client, auth_headers):
     """Non-YYYY-MM-DD date strings return HTTP 422."""
-    resp = client.get("/api/diary/not-a-date")
+    resp = client.get("/api/diary/not-a-date", headers=auth_headers)
     assert resp.status_code == 422
 
-    resp2 = client.get("/api/diary/2026-13-01")
+    resp2 = client.get("/api/diary/2026-13-01", headers=auth_headers)
     assert resp2.status_code == 422
 
 
-def test_empty_day_has_zero_totals_and_no_estimated(client, db_session):
+def test_empty_day_has_zero_totals_and_no_estimated(client, db_session, auth_headers):
     """A day with no entries has empty day_totals and has_estimated_entries=false."""
-    resp = client.get("/api/diary/2025-01-01")
+    resp = client.get("/api/diary/2025-01-01", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["day_totals"] == {}
     assert data["has_estimated_entries"] is False
 
 
-def test_multiple_meals_with_entries_and_skips(client, db_session):
+def test_multiple_meals_with_entries_and_skips(client, db_session, auth_headers, test_user):
     """Integration: breakfast has entries, lunch is skipped, dinner has entries."""
     fid_b = _insert_food(db_session, name="Bagel")
     fid_d = _insert_food(db_session, name="Steak")
 
-    eid_b = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid_b, eaten_at=datetime(2026, 6, 1, 7, 0, 0))
+    eid_b = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid_b, eaten_at=datetime(2026, 6, 1, 7, 0, 0), user_id=str(test_user.id))
     _add_entry_nutrient(db_session, eid_b, "calories_kcal", 250.0)
 
     _insert_skip(db_session, _LUNCH_ID, "2026-06-01")
 
-    eid_d = _insert_entry(db_session, meal_id=_DINNER_ID, food_id=fid_d, eaten_at=datetime(2026, 6, 1, 19, 0, 0))
+    eid_d = _insert_entry(db_session, meal_id=_DINNER_ID, food_id=fid_d, eaten_at=datetime(2026, 6, 1, 19, 0, 0), user_id=str(test_user.id))
     _add_entry_nutrient(db_session, eid_d, "calories_kcal", 600.0)
 
-    resp = client.get("/api/diary/2026-06-01")
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -407,18 +414,49 @@ def test_multiple_meals_with_entries_and_skips(client, db_session):
     assert Decimal(str(data["day_totals"]["calories_kcal"])) == Decimal("850")
 
 
+def test_diary_user_isolation(client, db_session, auth_headers, admin_headers, test_user, admin_user):
+    """Two users with entries on the same date each see only their own entries."""
+    fid1 = _insert_food(db_session, name="User Food")
+    fid2 = _insert_food(db_session, name="Admin Food")
+
+    eid1 = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid1, eaten_at=datetime(2026, 6, 1, 8, 0, 0), user_id=str(test_user.id))
+    eid2 = _insert_entry(db_session, meal_id=_BREAKFAST_ID, food_id=fid2, eaten_at=datetime(2026, 6, 1, 8, 0, 0), user_id=str(admin_user.id))
+    _add_entry_nutrient(db_session, eid1, "calories_kcal", 100.0)
+    _add_entry_nutrient(db_session, eid2, "calories_kcal", 200.0)
+
+    resp_user = client.get("/api/diary/2026-06-01", headers=auth_headers)
+    assert resp_user.status_code == 200
+    user_breakfast = next(m for m in resp_user.json()["meals"] if m["meal_name"] == "Breakfast")
+    assert len(user_breakfast["entries"]) == 1
+    assert user_breakfast["entries"][0]["food_name"] == "User Food"
+
+    resp_admin = client.get("/api/diary/2026-06-01", headers=admin_headers)
+    assert resp_admin.status_code == 200
+    admin_breakfast = next(m for m in resp_admin.json()["meals"] if m["meal_name"] == "Breakfast")
+    assert len(admin_breakfast["entries"]) == 1
+    assert admin_breakfast["entries"][0]["food_name"] == "Admin Food"
+
+
+def test_no_token_returns_token_revoked(client):
+    """GET /api/diary/{date} with no token returns token_revoked error."""
+    resp = client.get("/api/diary/2026-06-01")
+    assert resp.status_code == 401
+    data = resp.json()
+    assert data["error"]["code"] == "token_revoked"
+
+
 # ---------------------------------------------------------------------------
 # POST /api/diary/{date}/meals/{meal_id}/skip
 # ---------------------------------------------------------------------------
 
 
-def test_skip_returns_201(client):
-    resp = client.post(_SKIP_URL)
+def test_skip_returns_201(client, auth_headers):
+    resp = client.post(_SKIP_URL, headers=auth_headers)
     assert resp.status_code == 201
 
 
-def test_skip_creates_meal_skip_row(client, db_session):
-    client.post(_SKIP_URL)
+def test_skip_creates_meal_skip_row(client, db_session, auth_headers):
+    client.post(_SKIP_URL, headers=auth_headers)
 
     rows = db_session.execute(select(MealSkip)).scalars().all()
     assert len(rows) == 1
@@ -426,21 +464,21 @@ def test_skip_creates_meal_skip_row(client, db_session):
     assert str(rows[0].skipped_on) == _SKIP_DATE
 
 
-def test_skip_invalid_meal_id_returns_422(client):
+def test_skip_invalid_meal_id_returns_422(client, auth_headers):
     url = f"/api/diary/{_SKIP_DATE}/meals/{uuid.uuid4()}/skip"
-    resp = client.post(url)
+    resp = client.post(url, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_skip_invalid_date_format_returns_422(client):
+def test_skip_invalid_date_format_returns_422(client, auth_headers):
     url = f"/api/diary/not-a-date/meals/{_BREAKFAST_ID}/skip"
-    resp = client.post(url)
+    resp = client.post(url, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_skip_duplicate_returns_409(client):
-    client.post(_SKIP_URL)
-    resp = client.post(_SKIP_URL)
+def test_skip_duplicate_returns_409(client, auth_headers):
+    client.post(_SKIP_URL, headers=auth_headers)
+    resp = client.post(_SKIP_URL, headers=auth_headers)
     assert resp.status_code == 409
 
 
@@ -449,34 +487,34 @@ def test_skip_duplicate_returns_409(client):
 # ---------------------------------------------------------------------------
 
 
-def test_unskip_returns_204(client):
-    client.post(_SKIP_URL)
-    resp = client.delete(_SKIP_URL)
+def test_unskip_returns_204(client, auth_headers):
+    client.post(_SKIP_URL, headers=auth_headers)
+    resp = client.delete(_SKIP_URL, headers=auth_headers)
     assert resp.status_code == 204
 
 
-def test_unskip_removes_row(client, db_session):
-    client.post(_SKIP_URL)
-    client.delete(_SKIP_URL)
+def test_unskip_removes_row(client, db_session, auth_headers):
+    client.post(_SKIP_URL, headers=auth_headers)
+    client.delete(_SKIP_URL, headers=auth_headers)
 
     rows = db_session.execute(select(MealSkip)).scalars().all()
     assert rows == []
 
 
-def test_unskip_not_found_returns_404(client):
-    resp = client.delete(_SKIP_URL)
+def test_unskip_not_found_returns_404(client, auth_headers):
+    resp = client.delete(_SKIP_URL, headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_unskip_invalid_date_format_returns_422(client):
+def test_unskip_invalid_date_format_returns_422(client, auth_headers):
     url = f"/api/diary/not-a-date/meals/{_BREAKFAST_ID}/skip"
-    resp = client.delete(url)
+    resp = client.delete(url, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_reskip_after_unskip(client, db_session):
-    client.post(_SKIP_URL)    # create skip
-    client.delete(_SKIP_URL)  # remove skip
+def test_reskip_after_unskip(client, db_session, auth_headers):
+    client.post(_SKIP_URL, headers=auth_headers)    # create skip
+    client.delete(_SKIP_URL, headers=auth_headers)  # remove skip
 
     # Row is gone — unique constraint no longer blocks a new insert.
     # A third HTTP call here would escape SQLite+StaticPool savepoint isolation.
@@ -491,42 +529,42 @@ def test_reskip_after_unskip(client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_get_diary_reflects_skip_after_post(client):
+def test_get_diary_reflects_skip_after_post(client, auth_headers):
     """GET diary shows is_skipped=true after a POST skip."""
-    client.post(_SKIP_URL)
+    client.post(_SKIP_URL, headers=auth_headers)
 
-    resp = client.get(f"/api/diary/{_SKIP_DATE}")
+    resp = client.get(f"/api/diary/{_SKIP_DATE}", headers=auth_headers)
     assert resp.status_code == 200
     breakfast = next(m for m in resp.json()["meals"] if m["meal_id"] == _BREAKFAST_ID)
     assert breakfast["is_skipped"] is True
 
 
-def test_get_diary_reflects_unskip_after_delete(client):
+def test_get_diary_reflects_unskip_after_delete(client, auth_headers):
     """GET diary shows is_skipped=false after POST then DELETE."""
-    client.post(_SKIP_URL)
-    client.delete(_SKIP_URL)
+    client.post(_SKIP_URL, headers=auth_headers)
+    client.delete(_SKIP_URL, headers=auth_headers)
 
-    resp = client.get(f"/api/diary/{_SKIP_DATE}")
+    resp = client.get(f"/api/diary/{_SKIP_DATE}", headers=auth_headers)
     assert resp.status_code == 200
     breakfast = next(m for m in resp.json()["meals"] if m["meal_id"] == _BREAKFAST_ID)
     assert breakfast["is_skipped"] is False
 
 
-def test_get_diary_skip_is_date_scoped(client):
+def test_get_diary_skip_is_date_scoped(client, auth_headers):
     """A skip on one date does not affect adjacent dates."""
-    client.post(_SKIP_URL)
+    client.post(_SKIP_URL, headers=auth_headers)
 
-    resp = client.get(f"/api/diary/2026-06-04")
+    resp = client.get(f"/api/diary/2026-06-04", headers=auth_headers)
     assert resp.status_code == 200
     breakfast = next(m for m in resp.json()["meals"] if m["meal_id"] == _BREAKFAST_ID)
     assert breakfast["is_skipped"] is False
 
 
-def test_get_diary_only_skipped_meal_flagged(client):
+def test_get_diary_only_skipped_meal_flagged(client, auth_headers):
     """Skipping breakfast does not affect other meals."""
-    client.post(_SKIP_URL)
+    client.post(_SKIP_URL, headers=auth_headers)
 
-    resp = client.get(f"/api/diary/{_SKIP_DATE}")
+    resp = client.get(f"/api/diary/{_SKIP_DATE}", headers=auth_headers)
     assert resp.status_code == 200
     non_breakfast = [m for m in resp.json()["meals"] if m["meal_id"] != _BREAKFAST_ID]
     assert all(not m["is_skipped"] for m in non_breakfast)

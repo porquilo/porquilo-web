@@ -7,7 +7,9 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from porquilo.core.database import get_session
+from porquilo.core.deps import get_current_user
 from porquilo.models.app_setting import AppSetting
+from porquilo.models.user import User
 from porquilo.services.settings_service import KNOWN_SETTINGS_KEYS, set_setting
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -33,13 +35,13 @@ def _to_read(row: Optional[AppSetting], key: str) -> SettingRead:
 
 
 @router.get("", response_model=list[SettingRead])
-def list_settings(session: Session = Depends(get_session)) -> list[SettingRead]:
+def list_settings(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> list[SettingRead]:
     rows = {r.key: r for r in session.exec(select(AppSetting)).all()}
     return [_to_read(rows.get(k), k) for k in sorted(KNOWN_SETTINGS_KEYS)]
 
 
 @router.get("/{key}", response_model=SettingRead)
-def get_setting_endpoint(key: str, session: Session = Depends(get_session)) -> SettingRead:
+def get_setting_endpoint(key: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> SettingRead:
     if key not in KNOWN_SETTINGS_KEYS:
         raise HTTPException(status_code=404, detail=f"Unknown settings key: {key!r}")
     row = session.get(AppSetting, key)
@@ -51,6 +53,7 @@ def update_setting(
     key: str,
     body: SettingUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ) -> SettingRead:
     if key not in KNOWN_SETTINGS_KEYS:
         raise HTTPException(status_code=422, detail=f"Unknown settings key: {key!r}")

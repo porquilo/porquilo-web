@@ -178,85 +178,85 @@ def test_reindex_food_none_brand(db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_token_search_prefix_match(client, db_session):
+def test_token_search_prefix_match(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Peanut Butter")
     _add_nutrient(db_session, fid)
     reindex_food(fid, db_session)
 
-    resp = client.get("/api/foods", params={"q": "butter"})
+    resp = client.get("/api/foods", params={"q": "butter"}, headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert "Peanut Butter" in names
 
 
-def test_token_search_partial_prefix(client, db_session):
+def test_token_search_partial_prefix(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Peanut Butter")
     _add_nutrient(db_session, fid)
     reindex_food(fid, db_session)
 
-    resp = client.get("/api/foods", params={"q": "pean"})
+    resp = client.get("/api/foods", params={"q": "pean"}, headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert "Peanut Butter" in names
 
 
-def test_token_search_no_match_returns_empty(client, db_session):
-    resp = client.get("/api/foods", params={"q": "xyz_no_match_token"})
+def test_token_search_no_match_returns_empty(client, db_session, auth_headers):
+    resp = client.get("/api/foods", params={"q": "xyz_no_match_token"}, headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json() == {"items": [], "total": 0}
 
 
-def test_token_search_multi_word_query(client, db_session):
+def test_token_search_multi_word_query(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Brown Rice")
     _add_nutrient(db_session, fid)
     reindex_food(fid, db_session)
 
-    resp = client.get("/api/foods", params={"q": "brown rice"})
+    resp = client.get("/api/foods", params={"q": "brown rice"}, headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert "Brown Rice" in names
 
 
-def test_browse_mode_no_token_filter(client, db_session):
+def test_browse_mode_no_token_filter(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Zucchini")
     _add_nutrient(db_session, fid)
     # No tokens — browse mode should still return the food
 
-    resp = client.get("/api/foods")
+    resp = client.get("/api/foods", headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert "Zucchini" in names
 
 
-def test_short_q_browse_mode_no_token_filter(client, db_session):
+def test_short_q_browse_mode_no_token_filter(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Avocado")
     _add_nutrient(db_session, fid)
     # q shorter than 2 chars → browse mode, no token filtering
 
-    resp = client.get("/api/foods", params={"q": "a"})
+    resp = client.get("/api/foods", params={"q": "a"}, headers=auth_headers)
     assert resp.status_code == 200
     # just verify no 500
     assert "items" in resp.json()
 
 
-def test_token_search_brand_match(client, db_session):
+def test_token_search_brand_match(client, db_session, auth_headers):
     fid = _insert_food(db_session, name="Orange Juice", brand="Tropicana")
     _add_nutrient(db_session, fid)
     reindex_food(fid, db_session)
 
-    resp = client.get("/api/foods", params={"q": "tropicana"})
+    resp = client.get("/api/foods", params={"q": "tropicana"}, headers=auth_headers)
     assert resp.status_code == 200
     names = [f["name"] for f in resp.json()["items"]]
     assert "Orange Juice" in names
 
 
-def test_total_count_matches_token_search(client, db_session):
+def test_total_count_matches_token_search(client, db_session, auth_headers):
     for i in range(3):
         fid = _insert_food(db_session, name=f"Kale Chip {i}")
         _add_nutrient(db_session, fid)
         reindex_food(fid, db_session)
 
-    resp = client.get("/api/foods", params={"q": "kale"})
+    resp = client.get("/api/foods", params={"q": "kale"}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 3

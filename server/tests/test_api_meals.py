@@ -17,8 +17,8 @@ _DINNER_ID = "36e75e9e-297e-49cd-a4b3-bb6345fc91e0"
 _SNACK_ID = "bb075e7e-320a-45e4-a9d8-f28a3939d50a"
 
 
-def test_list_meals_returns_all_seeded_in_sort_order(client):
-    resp = client.get("/api/meals")
+def test_list_meals_returns_all_seeded_in_sort_order(client, auth_headers):
+    resp = client.get("/api/meals", headers=auth_headers)
     assert resp.status_code == 200
     meals = resp.json()
 
@@ -27,14 +27,14 @@ def test_list_meals_returns_all_seeded_in_sort_order(client):
     assert names == ["Breakfast", "Lunch", "Dinner", "Snack"]
 
 
-def test_list_meals_sort_order_ascending(client):
-    resp = client.get("/api/meals")
+def test_list_meals_sort_order_ascending(client, auth_headers):
+    resp = client.get("/api/meals", headers=auth_headers)
     orders = [m["sort_order"] for m in resp.json()]
     assert orders == sorted(orders)
 
 
-def test_list_meals_response_shape(client):
-    resp = client.get("/api/meals")
+def test_list_meals_response_shape(client, auth_headers):
+    resp = client.get("/api/meals", headers=auth_headers)
     meals = resp.json()
     for meal in meals:
         assert set(meal.keys()) == {"id", "name", "sort_order", "is_default"}
@@ -44,8 +44,8 @@ def test_list_meals_response_shape(client):
         assert isinstance(meal["is_default"], bool)
 
 
-def test_list_meals_known_ids(client):
-    resp = client.get("/api/meals")
+def test_list_meals_known_ids(client, auth_headers):
+    resp = client.get("/api/meals", headers=auth_headers)
     ids = [m["id"] for m in resp.json()]
     assert _BREAKFAST_ID in ids
     assert _LUNCH_ID in ids
@@ -58,8 +58,8 @@ def test_list_meals_known_ids(client):
 # ---------------------------------------------------------------------------
 
 
-def test_create_meal_returns_201_and_meal_out(client):
-    resp = client.post("/api/meals", json={"name": "Evening Snack"})
+def test_create_meal_returns_201_and_meal_out(client, auth_headers):
+    resp = client.post("/api/meals", json={"name": "Evening Snack"}, headers=auth_headers)
     assert resp.status_code == 201
     data = resp.json()
     assert set(data.keys()) == {"id", "name", "sort_order", "is_default"}
@@ -69,33 +69,33 @@ def test_create_meal_returns_201_and_meal_out(client):
     assert isinstance(data["is_default"], bool)
 
 
-def test_create_meal_is_default_false(client):
-    resp = client.post("/api/meals", json={"name": "Pre-Workout"})
+def test_create_meal_is_default_false(client, auth_headers):
+    resp = client.post("/api/meals", json={"name": "Pre-Workout"}, headers=auth_headers)
     assert resp.status_code == 201
     assert resp.json()["is_default"] is False
 
 
-def test_create_meal_sort_order_defaults_to_max_plus_one(client):
+def test_create_meal_sort_order_defaults_to_max_plus_one(client, auth_headers):
     # Seeded meals have sort_order 1–4; new meal should get 5
-    resp = client.post("/api/meals", json={"name": "Late Night"})
+    resp = client.post("/api/meals", json={"name": "Late Night"}, headers=auth_headers)
     assert resp.status_code == 201
     assert resp.json()["sort_order"] == 5
 
 
-def test_create_meal_explicit_sort_order_stored(client):
-    resp = client.post("/api/meals", json={"name": "Brunch", "sort_order": 99})
+def test_create_meal_explicit_sort_order_stored(client, auth_headers):
+    resp = client.post("/api/meals", json={"name": "Brunch", "sort_order": 99}, headers=auth_headers)
     assert resp.status_code == 201
     assert resp.json()["sort_order"] == 99
 
 
-def test_create_meal_missing_name_returns_422(client):
-    resp = client.post("/api/meals", json={"sort_order": 5})
+def test_create_meal_missing_name_returns_422(client, auth_headers):
+    resp = client.post("/api/meals", json={"sort_order": 5}, headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_create_meal_appears_in_list_in_sort_order(client):
-    client.post("/api/meals", json={"name": "Second Breakfast", "sort_order": 2})
-    resp = client.get("/api/meals")
+def test_create_meal_appears_in_list_in_sort_order(client, auth_headers):
+    client.post("/api/meals", json={"name": "Second Breakfast", "sort_order": 2}, headers=auth_headers)
+    resp = client.get("/api/meals", headers=auth_headers)
     assert resp.status_code == 200
     meals = resp.json()
     orders = [m["sort_order"] for m in meals]
@@ -148,37 +148,37 @@ def _insert_log_entry(db_session, meal_id, food_id):
     return eid
 
 
-def test_delete_meal_returns_204(client):
-    resp = client.post("/api/meals", json={"name": "To Delete"})
+def test_delete_meal_returns_204(client, auth_headers):
+    resp = client.post("/api/meals", json={"name": "To Delete"}, headers=auth_headers)
     meal_id = resp.json()["id"]
-    resp = client.delete(f"/api/meals/{meal_id}")
+    resp = client.delete(f"/api/meals/{meal_id}", headers=auth_headers)
     assert resp.status_code == 204
 
 
-def test_deleted_meal_not_in_list(client):
-    resp = client.post("/api/meals", json={"name": "Gone"})
+def test_deleted_meal_not_in_list(client, auth_headers):
+    resp = client.post("/api/meals", json={"name": "Gone"}, headers=auth_headers)
     meal_id = resp.json()["id"]
-    client.delete(f"/api/meals/{meal_id}")
-    ids = [m["id"] for m in client.get("/api/meals").json()]
+    client.delete(f"/api/meals/{meal_id}", headers=auth_headers)
+    ids = [m["id"] for m in client.get("/api/meals", headers=auth_headers).json()]
     assert meal_id not in ids
 
 
-def test_delete_default_meal_returns_422(client):
-    resp = client.delete(f"/api/meals/{_BREAKFAST_ID}")
+def test_delete_default_meal_returns_422(client, auth_headers):
+    resp = client.delete(f"/api/meals/{_BREAKFAST_ID}", headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_delete_meal_with_log_entries_returns_422(client, db_session):
-    resp = client.post("/api/meals", json={"name": "Occupied"})
+def test_delete_meal_with_log_entries_returns_422(client, db_session, auth_headers):
+    resp = client.post("/api/meals", json={"name": "Occupied"}, headers=auth_headers)
     meal_id = resp.json()["id"]
     fid = _insert_food(db_session)
     _insert_log_entry(db_session, meal_id, fid)
-    resp = client.delete(f"/api/meals/{meal_id}")
+    resp = client.delete(f"/api/meals/{meal_id}", headers=auth_headers)
     assert resp.status_code == 422
 
 
-def test_delete_unknown_meal_returns_404(client):
-    resp = client.delete(f"/api/meals/{uuid.uuid4()}")
+def test_delete_unknown_meal_returns_404(client, auth_headers):
+    resp = client.delete(f"/api/meals/{uuid.uuid4()}", headers=auth_headers)
     assert resp.status_code == 404
 
 
@@ -187,8 +187,8 @@ def test_delete_unknown_meal_returns_404(client):
 # ---------------------------------------------------------------------------
 
 
-def test_patch_meal_name_renames_and_preserves_sort_order(client):
-    resp = client.patch(f"/api/meals/{_SNACK_ID}", json={"name": "Evening Snack"})
+def test_patch_meal_name_renames_and_preserves_sort_order(client, auth_headers):
+    resp = client.patch(f"/api/meals/{_SNACK_ID}", json={"name": "Evening Snack"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["name"] == "Evening Snack"
@@ -196,28 +196,28 @@ def test_patch_meal_name_renames_and_preserves_sort_order(client):
     assert data["sort_order"] == 4
 
 
-def test_patch_meal_sort_order_reorders_and_preserves_name(client):
-    resp = client.patch(f"/api/meals/{_BREAKFAST_ID}", json={"sort_order": 10})
+def test_patch_meal_sort_order_reorders_and_preserves_name(client, auth_headers):
+    resp = client.patch(f"/api/meals/{_BREAKFAST_ID}", json={"sort_order": 10}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["sort_order"] == 10
     assert data["name"] == "Breakfast"
 
 
-def test_patch_default_meal_works(client):
-    resp = client.patch(f"/api/meals/{_BREAKFAST_ID}", json={"name": "Morning Meal"})
+def test_patch_default_meal_works(client, auth_headers):
+    resp = client.patch(f"/api/meals/{_BREAKFAST_ID}", json={"name": "Morning Meal"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["name"] == "Morning Meal"
     assert data["is_default"] is True
 
 
-def test_patch_custom_meal_works(client):
-    create_resp = client.post("/api/meals", json={"name": "Brunch"})
+def test_patch_custom_meal_works(client, auth_headers):
+    create_resp = client.post("/api/meals", json={"name": "Brunch"}, headers=auth_headers)
     assert create_resp.status_code == 201
     meal_id = create_resp.json()["id"]
 
-    resp = client.patch(f"/api/meals/{meal_id}", json={"name": "Late Brunch", "sort_order": 99})
+    resp = client.patch(f"/api/meals/{meal_id}", json={"name": "Late Brunch", "sort_order": 99}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["name"] == "Late Brunch"
@@ -225,13 +225,13 @@ def test_patch_custom_meal_works(client):
     assert data["is_default"] is False
 
 
-def test_patch_unknown_id_returns_404(client):
-    resp = client.patch(f"/api/meals/{uuid.uuid4()}", json={"name": "Ghost"})
+def test_patch_unknown_id_returns_404(client, auth_headers):
+    resp = client.patch(f"/api/meals/{uuid.uuid4()}", json={"name": "Ghost"}, headers=auth_headers)
     assert resp.status_code == 404
 
 
-def test_patch_response_is_meal_out_shape(client):
-    resp = client.patch(f"/api/meals/{_LUNCH_ID}", json={"name": "Big Lunch"})
+def test_patch_response_is_meal_out_shape(client, auth_headers):
+    resp = client.patch(f"/api/meals/{_LUNCH_ID}", json={"name": "Big Lunch"}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert set(data.keys()) == {"id", "name", "sort_order", "is_default"}
@@ -241,9 +241,9 @@ def test_patch_response_is_meal_out_shape(client):
     assert isinstance(data["is_default"], bool)
 
 
-def test_patch_meal_appears_correctly_in_list(client):
-    client.patch(f"/api/meals/{_DINNER_ID}", json={"name": "Supper", "sort_order": 3})
-    resp = client.get("/api/meals")
+def test_patch_meal_appears_correctly_in_list(client, auth_headers):
+    client.patch(f"/api/meals/{_DINNER_ID}", json={"name": "Supper", "sort_order": 3}, headers=auth_headers)
+    resp = client.get("/api/meals", headers=auth_headers)
     assert resp.status_code == 200
     meals = resp.json()
     dinner = next(m for m in meals if m["id"] == _DINNER_ID)

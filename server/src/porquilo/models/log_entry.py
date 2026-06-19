@@ -20,6 +20,7 @@ class LogEntry(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False),
     )
+    user_id: Optional[uuid.UUID] = Field(default=None, sa_type=Uuid, foreign_key="users.id")
     weight_g: Optional[Decimal] = None
     weight_source: str
     weight_confidence: str

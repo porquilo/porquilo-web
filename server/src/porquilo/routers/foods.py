@@ -13,6 +13,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from porquilo.core.database import engine, get_session
+from porquilo.core.deps import get_current_user
+from porquilo.models.user import User
 from porquilo.services.name_normalization import normalize_and_store
 from porquilo.services.search_tokens import reindex_food, tokenize
 from porquilo.models import (
@@ -201,6 +203,7 @@ def search_foods(
     sort_by: str = Query(default="name"),
     sort_dir: str = Query(default="asc"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ) -> FoodPage:
     if sort_by not in VALID_SORT_FIELDS:
         raise HTTPException(status_code=422, detail=f"Invalid sort_by: {sort_by!r}")
@@ -334,7 +337,7 @@ def search_foods(
 
 
 @router.post("", response_model=FoodOut, status_code=201)
-def create_food(body: FoodCreate, session: Session = Depends(get_session)):
+def create_food(body: FoodCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     food_source = session.execute(
         select(FoodSource).where(FoodSource.key == body.source)
     ).scalars().first()
@@ -403,7 +406,7 @@ def create_food(body: FoodCreate, session: Session = Depends(get_session)):
 
 
 @router.patch("/{food_id}", response_model=FoodOut)
-def patch_food(food_id: UUID, body: FoodPatch, session: Session = Depends(get_session)):
+def patch_food(food_id: UUID, body: FoodPatch, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     food = session.get(Food, food_id)
     if food is None:
         raise HTTPException(status_code=404, detail="Food not found")
@@ -468,7 +471,7 @@ def patch_food(food_id: UUID, body: FoodPatch, session: Session = Depends(get_se
 
 
 @router.delete("/{food_id}", status_code=204)
-def delete_food(food_id: UUID, session: Session = Depends(get_session)):
+def delete_food(food_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     food = session.get(Food, food_id)
     if food is None:
         raise HTTPException(status_code=404, detail="Food not found")
@@ -482,7 +485,7 @@ def delete_food(food_id: UUID, session: Session = Depends(get_session)):
 
 
 @router.get("/lookup/barcode/{upc}", response_model=FoodOut)
-def lookup_food_by_barcode(upc: str, session: Session = Depends(get_session)):
+def lookup_food_by_barcode(upc: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     cached = session.execute(
         select(Food, FoodSource.key.label("source_key"))
         .join(FoodSource, Food.food_source_id == FoodSource.id)
@@ -526,7 +529,7 @@ def lookup_food_by_barcode(upc: str, session: Session = Depends(get_session)):
 
 
 @router.get("/{food_id}", response_model=FoodOut)
-def get_food(food_id: UUID, session: Session = Depends(get_session)):
+def get_food(food_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     record = get_food_with_overrides(food_id, session)
     if record is None:
         raise HTTPException(status_code=404, detail="Food not found")

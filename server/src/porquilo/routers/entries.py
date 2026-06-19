@@ -10,7 +10,9 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from porquilo.core.database import get_session
+from porquilo.core.deps import get_current_user
 from porquilo.models import Food, LogEntry, LogEntryNutrient, Meal, NutrientDefinition
+from porquilo.models.user import User
 from porquilo.services.nutrients import compute_nutrients, derive_confidence
 
 router = APIRouter(prefix="/api/entries", tags=["entries"])
@@ -93,7 +95,7 @@ def create_entries_batch():
 
 
 @router.post("", response_model=EntryOut, status_code=201)
-def create_entry(body: EntryCreate, session: Session = Depends(get_session)):
+def create_entry(body: EntryCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     food = session.get(Food, body.food_id)
     if food is None:
         raise HTTPException(status_code=422, detail="food_id not found")
@@ -109,6 +111,7 @@ def create_entry(body: EntryCreate, session: Session = Depends(get_session)):
         food_id=body.food_id,
         recipe_id=None,
         meal_id=body.meal_id,
+        user_id=current_user.id,
         eaten_at=body.eaten_at,
         logged_at=datetime.now(timezone.utc),
         weight_g=body.weight_g,
@@ -151,18 +154,18 @@ def create_entry(body: EntryCreate, session: Session = Depends(get_session)):
 
 
 @router.delete("/{entry_id}", status_code=204)
-def delete_entry(entry_id: UUID, session: Session = Depends(get_session)):
+def delete_entry(entry_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     entry = session.get(LogEntry, entry_id)
-    if entry is None:
+    if entry is None or entry.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Entry not found")
     session.delete(entry)
     session.commit()
 
 
 @router.patch("/{entry_id}", response_model=EntryDetailOut)
-def patch_entry(entry_id: UUID, body: EntryPatch, session: Session = Depends(get_session)):
+def patch_entry(entry_id: UUID, body: EntryPatch, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     entry = session.get(LogEntry, entry_id)
-    if entry is None:
+    if entry is None or entry.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Entry not found")
 
     if "meal_id" in body.model_fields_set:
@@ -206,8 +209,8 @@ def patch_entry(entry_id: UUID, body: EntryPatch, session: Session = Depends(get
 
 
 @router.get("/{entry_id}", response_model=EntryDetailOut)
-def get_entry(entry_id: UUID, session: Session = Depends(get_session)):
+def get_entry(entry_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     entry = session.get(LogEntry, entry_id)
-    if entry is None:
+    if entry is None or entry.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Entry not found")
     return _entry_detail_out(entry, session)

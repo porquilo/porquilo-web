@@ -309,18 +309,18 @@ def test_upsert_updates_source_fetched_at_on_second_call(db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_get_foods_calls_usda_when_cache_empty(client, db_session):
+def test_get_foods_calls_usda_when_cache_empty(client, db_session, auth_headers):
     """When local results < limit, search_usda and upsert_usda_food are both called."""
     with patch("porquilo.routers.foods.search_usda", return_value=[_USDA_CHICKEN_FOOD]) as mock_search:
         with patch("porquilo.routers.foods.upsert_usda_food", return_value=(MagicMock(), False)) as mock_upsert:
-            resp = client.get("/api/foods", params={"q": "chicken"})
+            resp = client.get("/api/foods", params={"q": "chicken"}, headers=auth_headers)
 
     assert resp.status_code == 200
     mock_search.assert_called_once()
     mock_upsert.assert_called_once()
 
 
-def test_get_foods_no_usda_on_cache_hit(client, db_session):
+def test_get_foods_no_usda_on_cache_hit(client, db_session, auth_headers):
     """When local results already satisfy limit, USDA is not called."""
     usda_source_id = db_session.execute(
         sa.text("SELECT id FROM food_sources WHERE key = 'usda'")
@@ -350,30 +350,30 @@ def test_get_foods_no_usda_on_cache_hit(client, db_session):
         reindex_food(uuid.UUID(fid), db_session)
 
     with patch("porquilo.routers.foods.search_usda") as mock_search:
-        resp = client.get("/api/foods", params={"q": "chicken", "limit": 20})
+        resp = client.get("/api/foods", params={"q": "chicken", "limit": 20}, headers=auth_headers)
 
     assert resp.status_code == 200
     assert len(resp.json()["items"]) == 20
     mock_search.assert_not_called()
 
 
-def test_get_foods_no_usda_without_q(client, db_session):
+def test_get_foods_no_usda_without_q(client, db_session, auth_headers):
     with patch("porquilo.routers.foods.search_usda") as mock_search:
-        resp = client.get("/api/foods")
+        resp = client.get("/api/foods", headers=auth_headers)
 
     assert resp.status_code == 200
     mock_search.assert_not_called()
 
 
-def test_get_foods_no_usda_short_q(client, db_session):
+def test_get_foods_no_usda_short_q(client, db_session, auth_headers):
     with patch("porquilo.routers.foods.search_usda") as mock_search:
-        resp = client.get("/api/foods", params={"q": "c"})
+        resp = client.get("/api/foods", params={"q": "c"}, headers=auth_headers)
 
     assert resp.status_code == 200
     mock_search.assert_not_called()
 
 
-def test_get_foods_returns_local_on_usda_failure(client, db_session):
+def test_get_foods_returns_local_on_usda_failure(client, db_session, auth_headers):
     """If USDA returns [], local results are returned without error."""
     usda_source_id = db_session.execute(
         sa.text("SELECT id FROM food_sources WHERE key = 'custom'")
@@ -400,7 +400,7 @@ def test_get_foods_returns_local_on_usda_failure(client, db_session):
     reindex_food(uuid.UUID(fid), db_session)
 
     with patch("porquilo.routers.foods.search_usda", return_value=[]):
-        resp = client.get("/api/foods", params={"q": "chicken"})
+        resp = client.get("/api/foods", params={"q": "chicken"}, headers=auth_headers)
 
     assert resp.status_code == 200
     assert any(f["name"] == "Chicken Salad" for f in resp.json()["items"])
