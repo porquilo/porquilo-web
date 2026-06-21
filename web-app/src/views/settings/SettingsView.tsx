@@ -12,12 +12,14 @@ import type { SettingRead } from '../../api/settings'
 import { startOffSync, getOffSyncStatus } from '../../api/sync'
 import type { OffSyncStatus } from '../../api/sync'
 import { ApiError } from '../../api/client'
+import AccountSection from './AccountSection'
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
-type Section = 'goals' | 'profile' | 'meals' | 'integrations' | 'data' | 'about'
+type Section = 'account' | 'goals' | 'profile' | 'meals' | 'integrations' | 'data' | 'about'
 
 const NAV_ITEMS: { id: Section; label: string }[] = [
+  { id: 'account',      label: 'Account' },
   { id: 'goals',        label: 'Goals' },
   { id: 'profile',      label: 'Profile' },
   { id: 'meals',        label: 'Meals' },
@@ -737,7 +739,7 @@ function MealsSection() {
 // ─── main view ───────────────────────────────────────────────────────────────
 
 export default function SettingsView() {
-  const [section, setSection] = useState<Section>('goals')
+  const [section, setSection] = useState<Section>('account')
   const { setToast } = useToast()
 
   const navBtnBase: CSSProperties = {
@@ -804,6 +806,7 @@ export default function SettingsView() {
 
         {/* Right content */}
         <div>
+          {section === 'account'      && <AccountSection />}
           {section === 'goals'        && <GoalsSection setToast={setToast} />}
           {section === 'profile'      && <ProfileSection setToast={setToast} />}
           {section === 'meals'        && <MealsSection />}

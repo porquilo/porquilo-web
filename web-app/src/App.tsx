@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ToastProvider, useToast } from './contexts/ToastContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { TodayView } from './views/today/TodayView'
 import { QuickLogPanel } from './views/today/QuickLogPanel'
 import { EditEntryPanel } from './views/today/EditEntryPanel'
 import LibraryView from './views/library/LibraryView'
 import ReportsView from './views/reports/ReportsView'
 import SettingsView from './views/settings/SettingsView'
+import LoginView from './views/LoginView'
+import SetupWizardView from './views/SetupWizardView'
 import { formatDate } from './utils/dates'
 
 export type Tab = 'today' | 'library' | 'reports' | 'settings'
@@ -89,11 +92,23 @@ function Shell() {
   )
 }
 
+function AuthGate() {
+  const { user, initialized, isLoading } = useAuth()
+
+  if (isLoading) return null
+
+  if (initialized === false) return <SetupWizardView />
+  if (user === null) return <LoginView />
+  return <Shell />
+}
+
 function App() {
   return (
-    <ToastProvider>
-      <Shell />
-    </ToastProvider>
+    <AuthProvider>
+      <ToastProvider>
+        <AuthGate />
+      </ToastProvider>
+    </AuthProvider>
   )
 }
 

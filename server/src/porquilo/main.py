@@ -23,6 +23,7 @@ from porquilo.routers.settings import router as settings_router
 from porquilo.routers.setup import router as setup_router
 from porquilo.routers.sync import router as sync_router
 from porquilo.routers.users import router as users_router
+from porquilo.routers.version import router as version_router
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,7 @@ app.include_router(settings_router)
 app.include_router(setup_router, prefix="/api")
 app.include_router(sync_router)
 app.include_router(users_router, prefix="/api")
+app.include_router(version_router)
 
 
 @app.get("/health")
