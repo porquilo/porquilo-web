@@ -69,7 +69,7 @@ porquilo-web/web-app/
         SettingsView.tsx
         AccountSection.tsx        ← self-service password change + logout (all users);
                                      admin-only link to user management (web only)
-        UserManagementSection.tsx ← admin only: create, deactivate/reactivate, reset
+        UserManagementPanel.tsx ← admin only: create, deactivate/reactivate, reset
                                      password, generate per-user pairing QR (web only)
         ProfileSection.tsx
     hooks/            ← TanStack Query hooks, one file per resource
