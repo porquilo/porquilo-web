@@ -144,3 +144,20 @@ export interface UpdateEntryRequest {
   weight_g?: number
   weight_source?: string
 }
+
+// Auth
+export interface AuthUser {
+  id: string
+  username: string
+  role: 'admin' | 'member'
+}
+
+// Admin user management
+export interface AdminUser {
+  id: string
+  username: string
+  role: string
+  name: string | null
+  is_active: boolean
+  created_at: string
+}
