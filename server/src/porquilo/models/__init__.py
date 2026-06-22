@@ -13,6 +13,7 @@ from porquilo.models.log_entry_nutrient import LogEntryNutrient
 from porquilo.models.meal import Meal
 from porquilo.models.meal_skip import MealSkip
 from porquilo.models.nutrient_definition import NutrientDefinition
+from porquilo.models.pairing_code import PairingCode
 from porquilo.models.recipe import Recipe
 from porquilo.models.recipe_ingredient import RecipeIngredient
 from porquilo.models.sync_log import SyncLog
@@ -36,6 +37,7 @@ __all__ = [
     "Meal",
     "MealSkip",
     "NutrientDefinition",
+    "PairingCode",
     "Recipe",
     "RecipeIngredient",
     "SyncLog",

@@ -144,6 +144,7 @@ engine_013 = _make_engine_fixture("013")
 engine_014 = _make_engine_fixture("014")
 engine_015 = _make_engine_fixture("015")
 engine_016 = _make_engine_fixture("016")
+engine_017 = _make_engine_fixture("017")
 
 
 # ---------------------------------------------------------------------------

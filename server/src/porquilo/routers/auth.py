@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -6,6 +8,7 @@ from porquilo.core.database import get_session
 from porquilo.core.deps import get_current_user
 from porquilo.core.errors import raise_auth_error
 from porquilo.core.limiter import limiter
+from porquilo.models.pairing_code import PairingCode
 from porquilo.models.user import User
 from porquilo.services.auth_service import (
     create_token,
@@ -25,6 +28,10 @@ class LoginBody(BaseModel):
 class ChangePasswordBody(BaseModel):
     current_password: str
     new_password: str
+
+
+class PairingExchangeBody(BaseModel):
+    code: str
 
 
 @router.post("/auth/token")
@@ -77,3 +84,25 @@ def change_password(
     session.add(current_user)
     session.commit()
     return {"message": "Password updated."}
+
+
+@router.post("/auth/pairing/exchange")
+def exchange_pairing_code(
+    body: PairingExchangeBody,
+    session: Session = Depends(get_session),
+) -> dict:
+    pairing = session.execute(
+        select(PairingCode).where(PairingCode.code == body.code)
+    ).scalars().first()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if pairing is None or pairing.used_at is not None or pairing.expires_at < now:
+        raise_auth_error("invalid_pairing_code")
+    pairing.used_at = now
+    session.add(pairing)
+    token = create_token(pairing.user_id, session)
+    session.commit()
+    user = session.get(User, pairing.user_id)
+    return {
+        "token": token,
+        "user": {"id": str(user.id), "username": user.username, "role": user.role},
+    }
