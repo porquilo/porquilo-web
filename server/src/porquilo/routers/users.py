@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends
@@ -11,6 +12,7 @@ from sqlmodel import Session, select
 from porquilo.core.database import get_session
 from porquilo.core.deps import require_admin
 from porquilo.core.errors import PorquiloError
+from porquilo.models.pairing_code import PairingCode
 from porquilo.models.user import User
 from porquilo.services.auth_service import create_user, hash_password, revoke_all_tokens
 
@@ -120,3 +122,26 @@ def reset_password(
     session.commit()
 
     return {"message": "Password reset."}
+
+
+@router.post("/{user_id}/pairing-code")
+def generate_pairing_code(
+    user_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_admin),
+) -> dict:
+    user = session.get(User, user_id)
+    if user is None:
+        raise PorquiloError(code="not_found", message="User not found.", status_code=404)
+    code = secrets.token_urlsafe(16)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    expires_at = now + timedelta(minutes=15)
+    pairing = PairingCode(
+        user_id=user_id,
+        code=code,
+        expires_at=expires_at,
+        created_at=now,
+    )
+    session.add(pairing)
+    session.commit()
+    return {"code": code, "expires_at": expires_at.isoformat()}

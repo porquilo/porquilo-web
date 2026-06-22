@@ -6,8 +6,9 @@ AUTH_ERROR_CODES: dict[str, tuple[int, str]] = {
     "token_expired":       (401, "Your session expired. Log in again."),
     "account_deactivated": (403, "This account has been deactivated."),
     "insufficient_role":   (403, "This action needs an admin account."),
-    "too_many_attempts":   (429, "Too many attempts. Try again in a few minutes."),
-    "validation_error":    (422, "Validation failed."),
+    "too_many_attempts":     (429, "Too many attempts. Try again in a few minutes."),
+    "invalid_pairing_code": (422, "Invalid or expired pairing code."),
+    "validation_error":     (422, "Validation failed."),
     "internal_error":      (500, "Something went wrong."),
 }
 
