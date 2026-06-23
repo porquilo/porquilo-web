@@ -4,13 +4,16 @@
 //   cd web-app && npm run dev
 
 import { test, expect, request } from '@playwright/test'
+import { authHeaders, ensureAdminSession, loginAsAdmin } from './helpers/auth'
 
 let foodName: string
 
 test.beforeAll(async () => {
   const api = await request.newContext({ baseURL: 'http://localhost:8000' })
+  const admin = await ensureAdminSession(api)
   foodName = `e2e banana ${Date.now()}`
   const res = await api.post('/api/foods', {
+    headers: authHeaders(admin.token),
     data: {
       name: foodName,
       source: 'custom',
@@ -27,7 +30,7 @@ test.beforeAll(async () => {
 })
 
 test('logs a food via quick log and the entry appears in the diary', async ({ page }) => {
-  await page.goto('/')
+  await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Log food' }).click()
   await expect(page.getByText('Quick log')).toBeVisible()
 
@@ -53,7 +56,7 @@ test('logs a food via quick log and the entry appears in the diary', async ({ pa
 })
 
 test('Log it is disabled when amount is 0', async ({ page }) => {
-  await page.goto('/')
+  await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Log food' }).click()
   await expect(page.getByText('Quick log')).toBeVisible()
 

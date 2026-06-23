@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test'
+import { loginAsAdmin } from './helpers/auth'
 
 test('renders Today view on load', async ({ page }) => {
-  await page.goto('/')
+  await loginAsAdmin(page)
   await expect(page.getByRole('button', { name: 'Log food' })).toBeVisible()
 })
 
 test('can navigate to all four tabs', async ({ page }) => {
-  await page.goto('/')
+  await loginAsAdmin(page)
 
   await page.getByRole('button', { name: 'Library' }).click()
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
@@ -22,7 +23,7 @@ test('can navigate to all four tabs', async ({ page }) => {
 })
 
 test('date navigation changes the displayed date', async ({ page }) => {
-  await page.goto('/')
+  await loginAsAdmin(page)
 
   const todayLabel = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
@@ -38,7 +39,7 @@ test('date navigation changes the displayed date', async ({ page }) => {
 })
 
 test('Quick log panel opens and can be closed', async ({ page }) => {
-  await page.goto('/')
+  await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Log food' }).click()
 
   await expect(page.getByText('Quick log')).toBeVisible()

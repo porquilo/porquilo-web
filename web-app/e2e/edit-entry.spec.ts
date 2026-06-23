@@ -3,6 +3,7 @@
 // The Vite dev server is started automatically by playwright.config.ts.
 
 import { test, expect } from '@playwright/test'
+import { authHeaders, ensureAdminSession, loginAsAdmin } from './helpers/auth'
 
 // Tests mutate shared diary state so must not run in parallel
 test.describe.configure({ mode: 'serial' })
@@ -12,9 +13,14 @@ const today = new Date().toISOString().slice(0, 10)
 
 let foodId: string
 let breakfastMealId: string
+let adminToken: string
 
 test.beforeAll(async ({ request }) => {
+  const admin = await ensureAdminSession(request)
+  adminToken = admin.token
+
   const foodRes = await request.post(`${API}/api/foods`, {
+    headers: authHeaders(adminToken),
     data: {
       name: `e2e whole milk ${Date.now()}`,
       nutrients: [
@@ -28,7 +34,7 @@ test.beforeAll(async ({ request }) => {
   expect(foodRes.status()).toBe(201)
   foodId = (await foodRes.json()).id
 
-  const mealsRes = await request.get(`${API}/api/meals`)
+  const mealsRes = await request.get(`${API}/api/meals`, { headers: authHeaders(adminToken) })
   expect(mealsRes.ok()).toBeTruthy()
   const meals = await mealsRes.json()
   breakfastMealId = meals.find((m: { name: string }) => m.name === 'Breakfast').id
@@ -36,18 +42,19 @@ test.beforeAll(async ({ request }) => {
 
 test.beforeEach(async ({ request, page }) => {
   // Delete all of today's entries so each test starts clean
-  const diaryRes = await request.get(`${API}/api/diary/${today}`)
+  const diaryRes = await request.get(`${API}/api/diary/${today}`, { headers: authHeaders(adminToken) })
   if (diaryRes.ok()) {
     const diary = await diaryRes.json()
     for (const meal of diary.meals ?? []) {
       for (const entry of meal.entries ?? []) {
-        await request.delete(`${API}/api/entries/${entry.id}`)
+        await request.delete(`${API}/api/entries/${entry.id}`, { headers: authHeaders(adminToken) })
       }
     }
   }
 
   // Seed one entry at 250 g
   const entryRes = await request.post(`${API}/api/entries`, {
+    headers: authHeaders(adminToken),
     data: {
       food_id: foodId,
       meal_id: breakfastMealId,
@@ -59,7 +66,7 @@ test.beforeEach(async ({ request, page }) => {
   })
   expect(entryRes.status()).toBe(201)
 
-  await page.goto('/')
+  await loginAsAdmin(page)
 })
 
 test('clicking an entry row opens EditEntryPanel with pre-filled fields', async ({ page }) => {
