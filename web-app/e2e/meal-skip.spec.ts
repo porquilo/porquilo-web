@@ -1,18 +1,21 @@
 import { test, expect } from '@playwright/test'
+import { authHeaders, ensureAdminSession, loginAsAdmin } from './helpers/auth'
 
 test.beforeEach(async ({ request, page }) => {
+  const admin = await ensureAdminSession(request)
+
   // Clear today's diary entries so meals appear empty regardless of test order
   const today = new Date().toISOString().slice(0, 10)
-  const res = await request.get(`http://localhost:8000/api/diary/${today}`)
+  const res = await request.get(`http://localhost:8000/api/diary/${today}`, { headers: authHeaders(admin.token) })
   if (res.ok()) {
     const diary = await res.json()
     for (const meal of diary.meals ?? []) {
       for (const entry of meal.entries ?? []) {
-        await request.delete(`http://localhost:8000/api/entries/${entry.id}`)
+        await request.delete(`http://localhost:8000/api/entries/${entry.id}`, { headers: authHeaders(admin.token) })
       }
     }
   }
-  await page.goto('/')
+  await loginAsAdmin(page)
 })
 
 test('skipping a meal shows Eating after all and hides food controls', async ({ page }) => {

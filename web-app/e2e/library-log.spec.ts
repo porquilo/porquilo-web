@@ -1,11 +1,14 @@
 import { test, expect, request } from '@playwright/test'
+import { authHeaders, ensureAdminSession, loginAsAdmin } from './helpers/auth'
 
 let foodName: string
 
 test.beforeAll(async () => {
   const api = await request.newContext({ baseURL: 'http://localhost:8000' })
+  const admin = await ensureAdminSession(api)
   foodName = `e2e oat milk ${Date.now()}`
   const res = await api.post('/api/foods', {
+    headers: authHeaders(admin.token),
     data: {
       name: foodName,
       source: 'custom',
@@ -22,7 +25,7 @@ test.beforeAll(async () => {
 })
 
 test('food created via API appears in the Library', async ({ page }) => {
-  await page.goto('/')
+  await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Library' }).click()
 
   await page.getByPlaceholder('banana, oat milk, …').fill(foodName)
@@ -31,7 +34,7 @@ test('food created via API appears in the Library', async ({ page }) => {
 })
 
 test('inline log button triggers a toast confirming the log', async ({ page }) => {
-  await page.goto('/')
+  await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Library' }).click()
 
   await page.getByPlaceholder('banana, oat milk, …').fill(foodName)
