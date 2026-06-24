@@ -30,3 +30,9 @@ export async function resetUserPassword(userId: string, newPassword: string): Pr
     body: JSON.stringify({ new_password: newPassword }),
   })
 }
+
+export async function generatePairingCode(userId: string): Promise<{ code: string; expires_at: string }> {
+  return apiFetch(`/api/users/${userId}/pairing-code`, {
+    method: 'POST',
+  })
+}

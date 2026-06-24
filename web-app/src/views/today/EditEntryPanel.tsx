@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useEntry, useUpdateEntry, useDeleteEntry } from '../../hooks/useEntries'
 import { useMeals } from '../../hooks/useMeals'
+import { parseUtcTimestamp } from '../../utils/dates'
 import type { UpdateEntryRequest } from '../../types/api'
 
 interface EditEntryPanelProps {
@@ -17,7 +18,7 @@ const MACRO_LABELS: Record<string, string> = {
 }
 
 function formatLocalTime(isoStr: string): string {
-  const d = new Date(isoStr)
+  const d = parseUtcTimestamp(isoStr)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
