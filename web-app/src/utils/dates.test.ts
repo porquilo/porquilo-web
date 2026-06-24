@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, parseDate, addDays, formatDateLabel } from './dates'
+import { formatDate, parseDate, addDays, formatDateLabel, parseUtcTimestamp } from './dates'
 
 describe('formatDate', () => {
   it('formats a date as YYYY-MM-DD', () => {
@@ -64,5 +64,27 @@ describe('formatDateLabel', () => {
 
   it('works for a different month', () => {
     expect(formatDateLabel('2025-01-15')).toBe('Wednesday, January 15')
+  })
+})
+
+describe('parseUtcTimestamp', () => {
+  it('treats a timestamp with no timezone designator as UTC', () => {
+    const d = parseUtcTimestamp('2026-06-24T21:16:34.770300')
+    expect(d.toISOString()).toBe('2026-06-24T21:16:34.770Z')
+  })
+
+  it('leaves a timestamp with a trailing Z untouched', () => {
+    const d = parseUtcTimestamp('2026-06-24T21:16:34.770Z')
+    expect(d.toISOString()).toBe('2026-06-24T21:16:34.770Z')
+  })
+
+  it('leaves a timestamp with an explicit offset untouched', () => {
+    const d = parseUtcTimestamp('2026-06-24T21:16:34+00:00')
+    expect(d.toISOString()).toBe('2026-06-24T21:16:34.000Z')
+  })
+
+  it('respects a non-zero explicit offset', () => {
+    const d = parseUtcTimestamp('2026-06-24T21:16:34-05:00')
+    expect(d.toISOString()).toBe('2026-06-25T02:16:34.000Z')
   })
 })

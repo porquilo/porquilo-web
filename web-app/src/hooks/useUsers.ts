@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createUser, listUsers, resetUserPassword, setUserActive } from '../api/users'
+import { createUser, generatePairingCode, listUsers, resetUserPassword, setUserActive } from '../api/users'
 
 export function useUsers() {
   return useQuery({
@@ -30,5 +30,11 @@ export function useResetUserPassword() {
   return useMutation({
     mutationFn: ({ userId, newPassword }: { userId: string; newPassword: string }) =>
       resetUserPassword(userId, newPassword),
+  })
+}
+
+export function useGeneratePairingCode() {
+  return useMutation({
+    mutationFn: (userId: string) => generatePairingCode(userId),
   })
 }

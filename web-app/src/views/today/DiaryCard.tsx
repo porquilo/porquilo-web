@@ -2,6 +2,7 @@ import type { DiaryDay, DiaryMeal, DiaryEntry } from '../../types/api'
 import { ConfidenceBadge } from '../../components/ConfidenceBadge'
 import { useSkipMeal, useUnskipMeal } from '../../hooks/useEntries'
 import { useMeals } from '../../hooks/useMeals'
+import { parseUtcTimestamp } from '../../utils/dates'
 
 export interface DiaryCardProps {
   day: DiaryDay | undefined
@@ -12,7 +13,7 @@ export interface DiaryCardProps {
 }
 
 function formatEntryTime(isoStr: string): string {
-  const d = new Date(isoStr)
+  const d = parseUtcTimestamp(isoStr)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
