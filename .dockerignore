@@ -1,0 +1,28 @@
+# Dependencies installed inside the image — never copy from host
+web-app/node_modules/
+server/.venv/
+
+# Build artefacts produced inside the image
+web-app/dist/
+
+# Test / dev artefacts
+web-app/playwright-report/
+web-app/test-results/
+web-app/coverage/
+
+# Python byte-code and caches
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Editor / OS noise
+**/.DS_Store
+**/.idea/
+**/.vscode/
+
+# Git and Claude agent data
+.git/
+.claude/

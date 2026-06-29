@@ -24,3 +24,13 @@ export function formatDateLabel(str: string): string {
     day: 'numeric',
   }).format(date)
 }
+
+/**
+ * Parses a server timestamp as UTC, even when it omits a timezone designator.
+ * The server emits naive (no "Z"/offset) ISO timestamps for some fields (e.g.
+ * SQLite-backed columns), which `new Date(str)` would otherwise parse as local time.
+ */
+export function parseUtcTimestamp(isoString: string): Date {
+  const hasTimezone = /Z$|[+-]\d{2}:?\d{2}$/.test(isoString)
+  return new Date(hasTimezone ? isoString : `${isoString}Z`)
+}

@@ -1,4 +1,5 @@
 import type { DiaryDay, DiaryEntry } from '../../types/api'
+import { parseUtcTimestamp } from '../../utils/dates'
 
 export interface SummaryCardProps {
   day: DiaryDay | undefined
@@ -10,7 +11,7 @@ function getAllEntries(day: DiaryDay): DiaryEntry[] {
 }
 
 function formatTime(isoStr: string): string {
-  const d = new Date(isoStr)
+  const d = parseUtcTimestamp(isoStr)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 

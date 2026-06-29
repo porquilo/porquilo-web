@@ -84,8 +84,10 @@ def search_usda(query: str, session: Session, page_size: int = 10) -> list[dict]
             },
             timeout=8.0,
         )
-    except httpx.TimeoutException:
-        logger.warning("USDA search timed out for query %r", query)
+    except httpx.RequestError:
+        # Covers timeouts, connection failures, DNS errors, etc. — USDA being
+        # unreachable should degrade search to local-only results, not 500.
+        logger.warning("USDA search failed for query %r", query, exc_info=True)
         return []
 
     if response.status_code != 200:

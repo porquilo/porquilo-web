@@ -95,8 +95,12 @@ def exchange_pairing_code(
         select(PairingCode).where(PairingCode.code == body.code)
     ).scalars().first()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    if pairing is None or pairing.used_at is not None or pairing.expires_at < now:
+    if pairing is None:
         raise_auth_error("invalid_pairing_code")
+    if pairing.used_at is not None:
+        raise_auth_error("pairing_code_already_used")
+    if pairing.expires_at < now:
+        raise_auth_error("pairing_code_expired")
     pairing.used_at = now
     session.add(pairing)
     token = create_token(pairing.user_id, session)

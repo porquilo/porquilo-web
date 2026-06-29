@@ -7,7 +7,9 @@ AUTH_ERROR_CODES: dict[str, tuple[int, str]] = {
     "account_deactivated": (403, "This account has been deactivated."),
     "insufficient_role":   (403, "This action needs an admin account."),
     "too_many_attempts":     (429, "Too many attempts. Try again in a few minutes."),
-    "invalid_pairing_code": (422, "Invalid or expired pairing code."),
+    "invalid_pairing_code": (422, "Invalid pairing code."),
+    "pairing_code_expired": (422, "This pairing code has expired."),
+    "pairing_code_already_used": (422, "This pairing code has already been used."),
     "validation_error":     (422, "Validation failed."),
     "internal_error":      (500, "Something went wrong."),
 }

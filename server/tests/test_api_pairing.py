@@ -6,8 +6,8 @@ Verification checklist:
   - POST /api/users/{id}/pairing-code with unknown user_id returns 404
   - POST /api/auth/pairing/exchange with a valid unused code returns a bearer token
   - Returned bearer token authenticates a request to GET /api/users (admin) or returns 403 (member)
-  - Second exchange of the same code returns 422 invalid_pairing_code
-  - Exchange of an expired code returns 422 invalid_pairing_code
+  - Second exchange of the same code returns 422 pairing_code_already_used
+  - Exchange of an expired code returns 422 pairing_code_expired
   - Exchange of a nonexistent code returns 422 invalid_pairing_code
 """
 
@@ -114,7 +114,7 @@ def test_exchange_used_code_rejected(client, db_session, admin_user, admin_heade
     _exchange(client, code)  # first use
     second = _exchange(client, code)  # second use
     assert second.status_code == 422
-    assert second.json()["error"]["code"] == "invalid_pairing_code"
+    assert second.json()["error"]["code"] == "pairing_code_already_used"
 
 
 def test_exchange_expired_code_rejected(client, db_session, admin_user):
@@ -131,7 +131,7 @@ def test_exchange_expired_code_rejected(client, db_session, admin_user):
 
     resp = _exchange(client, expired_code)
     assert resp.status_code == 422
-    assert resp.json()["error"]["code"] == "invalid_pairing_code"
+    assert resp.json()["error"]["code"] == "pairing_code_expired"
 
 
 def test_exchange_nonexistent_code_rejected(client):
