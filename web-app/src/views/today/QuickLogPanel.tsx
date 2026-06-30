@@ -244,7 +244,7 @@ function DetailView({ food, defaultMealId, selectedDate, onBack, onClose, amount
         meal_id: selectedMealId,
         weight_g: qty,
         eaten_at,
-        weight_source: 'manual',
+        weight_source: 'quick_search',
         input_method: 'quick_log',
       })
       const mealName = meals.find(m => m.id === selectedMealId)?.name ?? ''
