@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 from porquilo.core.database import engine, get_session
 from porquilo.core.deps import get_current_user
 from porquilo.models.user import User
+from porquilo.models.log_entry import LogEntry
 from porquilo.services.name_normalization import normalize_and_store
 from porquilo.services.search_tokens import reindex_food, tokenize
 from porquilo.models import (
@@ -139,6 +140,38 @@ class FoodOut(BaseModel):
     default_unit: str
     nutrients: list[NutrientOut]
     variants: list[VariantOut]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/foods/suggestions — response models
+# ---------------------------------------------------------------------------
+
+_SOURCE_DISPLAY_MAP = {
+    "usda": "USDA",
+    "open_food_facts": "Barcode",
+    "custom": "Custom",
+}
+
+
+class FoodSuggestionBase(BaseModel):
+    food_id: UUID
+    food_name: str
+    source_key: str
+    source_display: str
+    calories_per_100g: float
+
+
+class RecentFoodItem(FoodSuggestionBase):
+    last_logged_at: datetime
+
+
+class FrequentFoodItem(FoodSuggestionBase):
+    log_count: int
+
+
+class FoodSuggestionsResponse(BaseModel):
+    recent: list[RecentFoodItem]
+    frequent: list[FrequentFoodItem]
 
 
 # ---------------------------------------------------------------------------
@@ -526,6 +559,87 @@ def lookup_food_by_barcode(upc: str, session: Session = Depends(get_session), cu
     session.commit()
 
     return _food_out(food, "open_food_facts", session)
+
+
+@router.get("/suggestions", response_model=FoodSuggestionsResponse)
+def get_food_suggestions(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> FoodSuggestionsResponse:
+    calories_subq = (
+        select(FoodNutrient.food_id, FoodNutrient.value_per_100)
+        .join(NutrientDefinition, FoodNutrient.nutrient_id == NutrientDefinition.id)
+        .where(NutrientDefinition.key == "calories_kcal")
+        .subquery()
+    )
+
+    base_filter = (LogEntry.user_id == current_user.id) & (LogEntry.food_id.is_not(None))
+
+    recent_stmt = (
+        select(
+            LogEntry.food_id,
+            sa.func.max(LogEntry.eaten_at).label("last_logged_at"),
+            Food.name,
+            FoodSource.key,
+            calories_subq.c.value_per_100,
+        )
+        .join(Food, LogEntry.food_id == Food.id)
+        .join(FoodSource, Food.food_source_id == FoodSource.id)
+        .outerjoin(calories_subq, calories_subq.c.food_id == Food.id)
+        .where(base_filter)
+        .group_by(LogEntry.food_id, Food.name, FoodSource.key, calories_subq.c.value_per_100)
+        .order_by(sa.desc("last_logged_at"))
+        .limit(5)
+    )
+
+    frequent_stmt = (
+        select(
+            LogEntry.food_id,
+            sa.func.count().label("log_count"),
+            Food.name,
+            FoodSource.key,
+            calories_subq.c.value_per_100,
+        )
+        .join(Food, LogEntry.food_id == Food.id)
+        .join(FoodSource, Food.food_source_id == FoodSource.id)
+        .outerjoin(calories_subq, calories_subq.c.food_id == Food.id)
+        .where(base_filter)
+        .group_by(LogEntry.food_id, Food.name, FoodSource.key, calories_subq.c.value_per_100)
+        .order_by(sa.desc("log_count"))
+        .limit(5)
+    )
+
+    recent_rows = session.execute(recent_stmt).all()
+    frequent_rows = session.execute(frequent_stmt).all()
+
+    def _source_display(source_key: str) -> str:
+        return _SOURCE_DISPLAY_MAP.get(source_key, source_key.capitalize())
+
+    recent = [
+        RecentFoodItem(
+            food_id=food_id,
+            food_name=name,
+            source_key=source_key,
+            source_display=_source_display(source_key),
+            calories_per_100g=float(calories or 0),
+            last_logged_at=last_logged_at,
+        )
+        for food_id, last_logged_at, name, source_key, calories in recent_rows
+    ]
+
+    frequent = [
+        FrequentFoodItem(
+            food_id=food_id,
+            food_name=name,
+            source_key=source_key,
+            source_display=_source_display(source_key),
+            calories_per_100g=float(calories or 0),
+            log_count=log_count,
+        )
+        for food_id, log_count, name, source_key, calories in frequent_rows
+    ]
+
+    return FoodSuggestionsResponse(recent=recent, frequent=frequent)
 
 
 @router.get("/{food_id}", response_model=FoodOut)
