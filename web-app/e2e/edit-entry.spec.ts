@@ -168,3 +168,62 @@ test('Confirm delete removes the entry and diary refetches', async ({ page }) =>
   await expect(breakfast.getByText('+ Add food')).toBeVisible()
   await expect(breakfast).not.toContainText('250')
 })
+
+test.describe('editing near local midnight', () => {
+  // UTC+14 with no DST — guarantees the local calendar date is always one day
+  // ahead of the UTC date for the fixed instant used below, regardless of when
+  // this suite happens to run.
+  test.use({ timezoneId: 'Pacific/Kiritimati' })
+
+  test('time round-trips through UTC storage across the local midnight boundary', async ({ page, request }) => {
+    // 2025-06-04T20:00:00Z is 2025-06-05T10:00 local — a different calendar date.
+    const fixedNow = new Date('2025-06-04T21:00:00Z')
+    await page.clock.setFixedTime(fixedNow)
+    const localDate = '2025-06-05'
+
+    // Clean up any leftover entries from a previous run on this fixed date
+    const diaryRes = await request.get(`${API}/api/diary/${localDate}`, { headers: authHeaders(adminToken) })
+    if (diaryRes.ok()) {
+      const diary = await diaryRes.json()
+      for (const meal of diary.meals ?? []) {
+        for (const entry of meal.entries ?? []) {
+          await request.delete(`${API}/api/entries/${entry.id}`, { headers: authHeaders(adminToken) })
+        }
+      }
+    }
+
+    // Seeded UTC date (06-04) differs from the local calendar date (06-05)
+    const entryRes = await request.post(`${API}/api/entries`, {
+      headers: authHeaders(adminToken),
+      data: {
+        food_id: foodId,
+        meal_id: breakfastMealId,
+        weight_g: 250,
+        eaten_at: '2025-06-04T20:00:00',
+        weight_source: 'scale',
+        input_method: 'manual',
+      },
+    })
+    expect(entryRes.status()).toBe(201)
+
+    await loginAsAdmin(page)
+
+    const breakfast = page.locator('[data-testid="meal-section-breakfast"]')
+    const entryRow = breakfast.locator('[role="button"]')
+    await expect(entryRow).toBeVisible()
+    await entryRow.click()
+
+    const drawer = page.locator('[data-testid="edit-entry-drawer"]')
+    const timeInput = drawer.locator('input[type="time"]')
+    await expect(timeInput).toHaveValue('10:00')
+
+    await timeInput.fill('23:30')
+    await drawer.getByRole('button', { name: 'Save' }).click()
+    await expect(drawer).toHaveAttribute('data-state', 'closed')
+
+    // Reload to force a fresh fetch from the server and re-open the panel
+    await page.reload()
+    await entryRow.click()
+    await expect(timeInput).toHaveValue('23:30')
+  })
+})

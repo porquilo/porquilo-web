@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useEntry, useUpdateEntry, useDeleteEntry } from '../../hooks/useEntries'
 import { useMeals } from '../../hooks/useMeals'
-import { parseUtcTimestamp } from '../../utils/dates'
+import { formatDate, parseUtcTimestamp, toUtcTimestamp } from '../../utils/dates'
 import type { UpdateEntryRequest } from '../../types/api'
 
 interface EditEntryPanelProps {
@@ -76,8 +76,8 @@ export function EditEntryPanel({ entryId, onClose }: EditEntryPanelProps) {
     if (weightSource !== entry.weight_source) patch.weight_source = weightSource
     if (mealId !== entry.meal_id) patch.meal_id = mealId
 
-    const datePart = entry.eaten_at.slice(0, 10)
-    const newEatenAt = `${datePart}T${eatenAt}:00`
+    const datePart = formatDate(parseUtcTimestamp(entry.eaten_at))
+    const newEatenAt = toUtcTimestamp(datePart, eatenAt)
     const origTime = formatLocalTime(entry.eaten_at)
     if (eatenAt !== origTime) patch.eaten_at = newEatenAt
 

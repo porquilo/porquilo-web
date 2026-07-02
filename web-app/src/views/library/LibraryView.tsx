@@ -13,7 +13,7 @@ import { Num } from '../../components/Num'
 import { CreateFoodSheet } from './CreateFoodSheet'
 import type { FoodResult } from '../../types/api'
 import { matchesFilter } from './libraryUtils'
-import { formatDate } from '../../utils/dates'
+import { formatDate, toUtcTimestamp } from '../../utils/dates'
 
 // ── Placeholder recipe data ────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ function FoodRow({ food }: FoodRowProps) {
       food_id: food.id,
       meal_id: meal.id,
       weight_g: qty,
-      eaten_at: `${formatDate(now)}T${h}:${m}:00`,
+      eaten_at: toUtcTimestamp(formatDate(now), `${h}:${m}`),
       weight_source: 'manual',
       input_method: 'library',
     })

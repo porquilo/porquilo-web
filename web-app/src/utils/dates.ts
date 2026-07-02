@@ -34,3 +34,14 @@ export function parseUtcTimestamp(isoString: string): Date {
   const hasTimezone = /Z$|[+-]\d{2}:?\d{2}$/.test(isoString)
   return new Date(hasTimezone ? isoString : `${isoString}Z`)
 }
+
+/**
+ * Serializes a local calendar date + time of day into a UTC ISO-8601 string.
+ * dateStr is "YYYY-MM-DD" and timeStr is "HH:mm", both interpreted in the
+ * browser's local timezone.
+ */
+export function toUtcTimestamp(dateStr: string, timeStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const [hh, mm] = timeStr.split(':').map(Number)
+  return new Date(y, m - 1, d, hh, mm).toISOString()
+}

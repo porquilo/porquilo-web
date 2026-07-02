@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { formatDate, parseDate, addDays, formatDateLabel, parseUtcTimestamp } from './dates'
+import { describe, expect, it, afterEach } from 'vitest'
+import { formatDate, parseDate, addDays, formatDateLabel, parseUtcTimestamp, toUtcTimestamp } from './dates'
 
 describe('formatDate', () => {
   it('formats a date as YYYY-MM-DD', () => {
@@ -86,5 +86,28 @@ describe('parseUtcTimestamp', () => {
   it('respects a non-zero explicit offset', () => {
     const d = parseUtcTimestamp('2026-06-24T21:16:34-05:00')
     expect(d.toISOString()).toBe('2026-06-25T02:16:34.000Z')
+  })
+})
+
+describe('toUtcTimestamp', () => {
+  const originalTZ = process.env.TZ
+
+  afterEach(() => {
+    process.env.TZ = originalTZ
+  })
+
+  it('converts a local time to UTC in a negative-offset timezone', () => {
+    process.env.TZ = 'America/New_York' // UTC-4 (EDT) in June
+    expect(toUtcTimestamp('2025-06-04', '09:30')).toBe('2025-06-04T13:30:00.000Z')
+  })
+
+  it('rolls over to the next UTC day for a late-night local time', () => {
+    process.env.TZ = 'America/Los_Angeles' // UTC-7 (PDT) in June
+    expect(toUtcTimestamp('2025-06-04', '23:45')).toBe('2025-06-05T06:45:00.000Z')
+  })
+
+  it('rolls back to the previous UTC day for an early-morning local time in a positive-offset timezone', () => {
+    process.env.TZ = 'Pacific/Auckland' // UTC+12 in June
+    expect(toUtcTimestamp('2025-06-04', '00:30')).toBe('2025-06-03T12:30:00.000Z')
   })
 })
