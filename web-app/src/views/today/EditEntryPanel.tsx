@@ -248,7 +248,12 @@ export function EditEntryPanel({ entryId, onClose }: EditEntryPanelProps) {
                   style={inputStyle}
                 >
                   <option value="scale">Scale</option>
+                  <option value="recipe_derived">Recipe derived</option>
                   <option value="manual">Manual</option>
+                  <option value="quick_search">Quick log (search)</option>
+                  <option value="quick_barcode">Quick log (barcode)</option>
+                  <option value="ai_describe">AI (describe)</option>
+                  <option value="ai_photo">AI (photo)</option>
                 </select>
               </div>
 
