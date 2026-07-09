@@ -221,7 +221,7 @@ export function EditEntryPanel({ entryId, onClose }: EditEntryPanelProps) {
             }}>
               Loading…
             </div>
-          ) : view === 'edit' ? (
+          ) : !entry ? null : view === 'edit' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Weight */}
               <div style={fieldStyle}>
@@ -392,7 +392,7 @@ export function EditEntryPanel({ entryId, onClose }: EditEntryPanelProps) {
         </div>
 
         {/* Footer — only shown in edit view */}
-        {!isLoading && view === 'edit' && (
+        {!isLoading && entry && view === 'edit' && (
           <div style={{
             padding: '14px 20px',
             borderTop: '1px solid var(--border-soft)',

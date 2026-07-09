@@ -37,7 +37,7 @@ test('logs a food via quick log and the entry appears in the diary', async ({ pa
 
   await page.getByPlaceholder('What did you eat?').fill(foodName)
 
-  const foodButton = page.getByRole('button', { name: new RegExp(foodName) })
+  const foodButton = drawer.getByRole('button', { name: new RegExp(foodName) })
   await expect(foodButton).toBeVisible()
   await foodButton.click()
 
@@ -63,7 +63,7 @@ test('Log it is disabled when amount is 0', async ({ page }) => {
 
   await page.getByPlaceholder('What did you eat?').fill(foodName)
 
-  const foodButton = page.getByRole('button', { name: new RegExp(foodName) })
+  const foodButton = drawer.getByRole('button', { name: new RegExp(foodName) })
   await expect(foodButton).toBeVisible()
   await foodButton.click()
 
