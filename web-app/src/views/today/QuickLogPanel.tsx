@@ -3,6 +3,7 @@ import { useFoods } from '../../hooks/useFoods'
 import { useMeals } from '../../hooks/useMeals'
 import { useCreateEntry } from '../../hooks/useEntries'
 import { useToast } from '../../contexts/ToastContext'
+import { toUtcTimestamp } from '../../utils/dates'
 import { WIcon, WI } from '../../components/Icon'
 import { Button } from '../../components/Button'
 import type { FoodResult, FoodVariant, Meal } from '../../types/api'
@@ -238,7 +239,7 @@ function DetailView({ food, defaultMealId, selectedDate, onBack, onClose, amount
     setError(null)
     setIsLogging(true)
     try {
-      const eaten_at = `${selectedDate}T${time}:00`
+      const eaten_at = toUtcTimestamp(selectedDate, time)
       await createEntry.mutateAsync({
         food_id: food.id,
         meal_id: selectedMealId,

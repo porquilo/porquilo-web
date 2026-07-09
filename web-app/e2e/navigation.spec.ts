@@ -42,7 +42,8 @@ test('Quick log panel opens and can be closed', async ({ page }) => {
   await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Log food' }).click()
 
-  await expect(page.getByText('Quick log')).toBeVisible()
+  const drawer = page.locator('[data-testid="quick-log-drawer"]')
+  await expect(drawer.getByText('Quick log')).toBeVisible()
 
   await page.getByRole('button', { name: 'Close' }).click()
 

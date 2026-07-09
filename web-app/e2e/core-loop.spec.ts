@@ -32,17 +32,17 @@ test.beforeAll(async () => {
 test('logs a food via quick log and the entry appears in the diary', async ({ page }) => {
   await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Log food' }).click()
-  await expect(page.getByText('Quick log')).toBeVisible()
+  const drawer = page.locator('[data-testid="quick-log-drawer"]')
+  await expect(drawer.getByText('Quick log')).toBeVisible()
 
   await page.getByPlaceholder('What did you eat?').fill(foodName)
 
-  const foodButton = page.getByRole('button', { name: new RegExp(foodName) })
+  const foodButton = drawer.getByRole('button', { name: new RegExp(foodName) })
   await expect(foodButton).toBeVisible()
   await foodButton.click()
 
   await expect(page.getByText(foodName)).toBeVisible()
 
-  const drawer = page.locator('[data-testid="quick-log-drawer"]')
   await drawer.getByRole('spinbutton').fill('150')
 
   // 89 kcal/100g × 1.5 = 133.5 → rounds to 134
@@ -58,15 +58,15 @@ test('logs a food via quick log and the entry appears in the diary', async ({ pa
 test('Log it is disabled when amount is 0', async ({ page }) => {
   await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Log food' }).click()
-  await expect(page.getByText('Quick log')).toBeVisible()
+  const drawer = page.locator('[data-testid="quick-log-drawer"]')
+  await expect(drawer.getByText('Quick log')).toBeVisible()
 
   await page.getByPlaceholder('What did you eat?').fill(foodName)
 
-  const foodButton = page.getByRole('button', { name: new RegExp(foodName) })
+  const foodButton = drawer.getByRole('button', { name: new RegExp(foodName) })
   await expect(foodButton).toBeVisible()
   await foodButton.click()
 
-  const drawer = page.locator('[data-testid="quick-log-drawer"]')
   await drawer.getByRole('spinbutton').fill('0')
 
   await expect(drawer.getByRole('button', { name: 'Log it' })).toBeDisabled()

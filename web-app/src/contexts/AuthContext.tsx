@@ -3,7 +3,23 @@ import type { ReactNode } from 'react'
 import { setToken } from '../api/client'
 import { login as apiLogin, logout as apiLogout } from '../api/auth'
 import { getSetupStatus, initSetup } from '../api/setup'
+import { getProfile, updateProfile } from '../api/profile'
 import type { AuthUser } from '../types/api'
+
+// Best-effort: keeps User.timezone in sync with the browser's IANA zone so the
+// server can bucket diary entries by the user's actual local calendar day.
+// Errors are swallowed — a stale/missing timezone just falls back to UTC server-side.
+async function syncBrowserTimezone(): Promise<void> {
+  try {
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const profile = await getProfile()
+    if (profile.timezone !== detected) {
+      await updateProfile({ timezone: detected })
+    }
+  } catch {
+    // ignore — best-effort sync
+  }
+}
 
 interface AuthContextValue {
   user: AuthUser | null
@@ -44,6 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const parsedUser = JSON.parse(storedUser) as AuthUser
               setToken(storedToken)
               setTokenState(storedToken)
+              // Awaited so the diary view can't fetch under a stale/unset
+              // timezone before this resolves — see syncBrowserTimezone above.
+              await syncBrowserTimezone()
               setUser(parsedUser)
             } catch {
               localStorage.removeItem('porquilo_token')
@@ -78,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('porquilo_user', JSON.stringify(result.user))
     setToken(result.token)
     setTokenState(result.token)
+    await syncBrowserTimezone()
     setUser(result.user)
   }
 
@@ -87,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('porquilo_user', JSON.stringify(result.user))
     setToken(result.token)
     setTokenState(result.token)
+    await syncBrowserTimezone()
     setUser(result.user)
     setInitialized(true)
   }

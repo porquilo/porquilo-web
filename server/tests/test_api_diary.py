@@ -342,6 +342,66 @@ def test_entries_from_other_dates_excluded(client, db_session, auth_headers, tes
     assert breakfast["entries"][0]["id"].replace("-", "") == eid_target
 
 
+def test_diary_uses_user_local_timezone_for_day_boundaries(client, db_session, auth_headers, test_user):
+    """An entry near local midnight buckets by the user's local day, not the UTC day."""
+    test_user.timezone = "Pacific/Kiritimati"  # UTC+14, no DST
+    db_session.add(test_user)
+    db_session.commit()
+
+    fid = _insert_food(db_session, name="Late Local Snack")
+    # 2026-06-04T20:00:00 UTC == 2026-06-05T10:00 local — different calendar day locally
+    eid = _insert_entry(
+        db_session,
+        meal_id=_SNACK_ID,
+        food_id=fid,
+        eaten_at=datetime(2026, 6, 4, 20, 0, 0),
+        user_id=str(test_user.id),
+    )
+    _add_entry_nutrient(db_session, eid, "calories_kcal", 42.0)
+
+    resp_local_day = client.get("/api/diary/2026-06-05", headers=auth_headers)
+    assert resp_local_day.status_code == 200
+    snack_local = next(m for m in resp_local_day.json()["meals"] if m["meal_name"] == "Snack")
+    assert len(snack_local["entries"]) == 1
+    assert snack_local["entries"][0]["food_name"] == "Late Local Snack"
+
+    resp_utc_day = client.get("/api/diary/2026-06-04", headers=auth_headers)
+    assert resp_utc_day.status_code == 200
+    snack_utc_day = next(m for m in resp_utc_day.json()["meals"] if m["meal_name"] == "Snack")
+    assert len(snack_utc_day["entries"]) == 0
+
+
+def test_diary_falls_back_to_utc_when_timezone_unset(client, db_session, auth_headers, test_user):
+    """When User.timezone is None, day boundaries fall back to UTC (unchanged behavior)."""
+    assert test_user.timezone is None
+
+    fid = _insert_food(db_session, name="UTC Fallback Snack")
+    eid = _insert_entry(
+        db_session,
+        meal_id=_SNACK_ID,
+        food_id=fid,
+        eaten_at=datetime(2026, 6, 1, 23, 0, 0),
+        user_id=str(test_user.id),
+    )
+    _add_entry_nutrient(db_session, eid, "calories_kcal", 10.0)
+
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
+    assert resp.status_code == 200
+    snack = next(m for m in resp.json()["meals"] if m["meal_name"] == "Snack")
+    assert len(snack["entries"]) == 1
+    assert snack["entries"][0]["food_name"] == "UTC Fallback Snack"
+
+
+def test_diary_ignores_invalid_timezone_falls_back_to_utc(client, db_session, auth_headers, test_user):
+    """An unrecognized IANA timezone name falls back to UTC rather than erroring."""
+    test_user.timezone = "Not/AZone"
+    db_session.add(test_user)
+    db_session.commit()
+
+    resp = client.get("/api/diary/2026-06-01", headers=auth_headers)
+    assert resp.status_code == 200
+
+
 def test_nutrient_key_uses_definition_key(client, db_session, auth_headers, test_user):
     """Nutrient keys in the response use NutrientDefinition.key (e.g. 'calories_kcal')."""
     fid = _insert_food(db_session, name="Rice")

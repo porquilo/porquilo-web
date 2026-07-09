@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -30,6 +31,22 @@ def _parse_date(raw: str) -> date:
         return date.fromisoformat(raw)
     except ValueError:
         raise HTTPException(status_code=422, detail="date must be YYYY-MM-DD")
+
+
+def _user_zoneinfo(current_user: User) -> ZoneInfo:
+    if current_user.timezone:
+        try:
+            return ZoneInfo(current_user.timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            pass
+    return ZoneInfo("UTC")
+
+
+def _local_day_bounds_utc(parsed_date: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
+    """UTC instants for the start and end of parsed_date in the given local timezone."""
+    local_start = datetime(parsed_date.year, parsed_date.month, parsed_date.day, tzinfo=tz)
+    local_end = local_start + timedelta(days=1)
+    return local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc)
 
 
 class NutrientValue(BaseModel):
@@ -65,12 +82,14 @@ class DiaryResponse(BaseModel):
 @router.get("/{date}", response_model=DiaryResponse)
 def get_diary(date: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> DiaryResponse:
     parsed_date = _parse_date(date)
-    day_start = datetime(parsed_date.year, parsed_date.month, parsed_date.day)
-    day_end = day_start + timedelta(days=1)
+    tz = _user_zoneinfo(current_user)
+    day_start, day_end = _local_day_bounds_utc(parsed_date, tz)
 
     meals = session.execute(select(Meal).order_by(Meal.sort_order)).scalars().all()
 
-    # meal_skips has no user_id column — skips are shared across all users for now.
+    # meal_skips has no user_id column — skips are shared across all users for now,
+    # and skipped_on is a bare calendar date with no time component, so there's no
+    # per-user local-day boundary to apply here even once user_id is added.
     # A future migration will add user_id to meal_skips and scope this query accordingly.
     skipped_meal_ids: set[uuid.UUID] = {
         row.meal_id
